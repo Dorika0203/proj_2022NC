@@ -22,8 +22,12 @@ class WrappedModel(nn.Module):
     def forward(self, x, label=None):
         return self.module(x, label)
 
-
 class SpeakerNet(nn.Module):
+    
+    
+    # SpeakerNet: Model과 Loss Function을 같이 묶어서 처리함.
+    
+    
     def __init__(self, model, optimizer, trainfunc, nPerSpeaker, **kwargs):
         super(SpeakerNet, self).__init__()
 
@@ -46,9 +50,9 @@ class SpeakerNet(nn.Module):
         else:
 
             outp = outp.reshape(self.nPerSpeaker, -1, outp.size()[-1]).transpose(1, 0).squeeze(1)
-
+            breakpoint()
             nloss, prec1 = self.__L__.forward(outp, label)
-
+            breakpoint()
             return nloss, prec1
 
 
@@ -90,24 +94,27 @@ class ModelTrainer(object):
         tstart = time.time()
 
         for data, data_label in loader:
-
+            
             data = data.transpose(1, 0)
-
+            
             self.__model__.zero_grad()
-
+            
             label = torch.LongTensor(data_label).cuda()
-
+            
+            # Q. mixed precision? GradScaler?
             if self.mixedprec:
                 with autocast():
                     nloss, prec1 = self.__model__(data, label)
                 self.scaler.scale(nloss).backward()
                 self.scaler.step(self.__optimizer__)
                 self.scaler.update()
+            
             else:
                 nloss, prec1 = self.__model__(data, label)
                 nloss.backward()
                 self.__optimizer__.step()
-
+                
+            breakpoint()
             loss += nloss.detach().cpu().item()
             top1 += prec1.detach().cpu().item()
             counter += 1

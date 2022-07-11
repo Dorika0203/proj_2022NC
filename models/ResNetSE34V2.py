@@ -29,7 +29,8 @@ class ResNetSE(nn.Module):
         self.layer2 = self._make_layer(block, num_filters[1], layers[1], stride=(2, 2))
         self.layer3 = self._make_layer(block, num_filters[2], layers[2], stride=(2, 2))
         self.layer4 = self._make_layer(block, num_filters[3], layers[3], stride=(2, 2))
-
+        
+        # Q. Instance norm ?
         self.instancenorm   = nn.InstanceNorm1d(n_mels)
         self.torchfb        = torch.nn.Sequential(
                 PreEmphasis(),
@@ -85,35 +86,44 @@ class ResNetSE(nn.Module):
         return out
 
     def forward(self, x):
-
+        # B, 32240
         with torch.no_grad():
             with torch.cuda.amp.autocast(enabled=False):
                 x = self.torchfb(x)+1e-6
                 if self.log_input: x = x.log()
                 x = self.instancenorm(x).unsqueeze(1)
-
+        
+        # B, 1, 40, 202
         x = self.conv1(x)
         x = self.relu(x)
         x = self.bn1(x)
-
+        # B, 32, 40, 202
         x = self.layer1(x)
+        # B, 32, 40, 202
         x = self.layer2(x)
+        # B, 64, 20, 101
         x = self.layer3(x)
+        # B, 128, 10, 51
         x = self.layer4(x)
-
+        # B, 256, 5, 26
         x = x.reshape(x.size()[0],-1,x.size()[-1])
-
+        # B, 1280, 26 => frame level features (1280: features per time frame axis, 26: time frame axis)
+        # Q. time frame axis가 202에서 26으로 축소되면서, 여러 윈도위의 피쳐들이 하나의 큰 윈도우 피쳐들로 합성됨.
+        # 이렇게 해도 될까?
+        
         w = self.attention(x)
 
         if self.encoder_type == "SAP":
             x = torch.sum(x * w, dim=2)
         elif self.encoder_type == "ASP":
-            mu = torch.sum(x * w, dim=2)
-            sg = torch.sqrt( ( torch.sum((x**2) * w, dim=2) - mu**2 ).clamp(min=1e-5) )
-            x = torch.cat((mu,sg),1)
-
+            mu = torch.sum(x * w, dim=2) # sum of attention * frame level features by frame dimension (B, 1280, 26) -> (B, 1280)
+            sg = torch.sqrt( ( torch.sum((x**2) * w, dim=2) - mu**2 ).clamp(min=1e-5) ) # Weighted std (B, 1280)
+            x = torch.cat((mu,sg),1) # => (B, 2560)
+        
+        # B, 1280 or B, 2560
         x = x.view(x.size()[0], -1)
         x = self.fc(x)
+        # B, 512
 
         return x
 
