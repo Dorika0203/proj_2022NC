@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "/home/doyeolkim/voxceleb_trainer"
+    ]
+}

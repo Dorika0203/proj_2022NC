@@ -48,11 +48,12 @@ class SpeakerNet(nn.Module):
             return outp
 
         else:
-
+            
+            # breakpoint()
             outp = outp.reshape(self.nPerSpeaker, -1, outp.size()[-1]).transpose(1, 0).squeeze(1)
-            breakpoint()
+            # breakpoint()
             nloss, prec1 = self.__L__.forward(outp, label)
-            breakpoint()
+            # breakpoint()
             return nloss, prec1
 
 
@@ -94,7 +95,7 @@ class ModelTrainer(object):
         tstart = time.time()
 
         for data, data_label in loader:
-            
+            # breakpoint()
             data = data.transpose(1, 0)
             
             self.__model__.zero_grad()
@@ -114,7 +115,7 @@ class ModelTrainer(object):
                 nloss.backward()
                 self.__optimizer__.step()
                 
-            breakpoint()
+            # breakpoint()
             loss += nloss.detach().cpu().item()
             top1 += prec1.detach().cpu().item()
             counter += 1
@@ -176,6 +177,7 @@ class ModelTrainer(object):
         ## Extract features for every image
         for idx, data in enumerate(test_loader):
             inp1 = data[0][0].cuda()
+            breakpoint()
             with torch.no_grad():
                 ref_feat = self.__model__(inp1).detach().cpu()
             feats[data[1][0]] = ref_feat
@@ -215,14 +217,16 @@ class ModelTrainer(object):
                 if len(data) == 2:
                     data = [random.randint(0, 1)] + data
 
-                ref_feat = feats[data[1]].cuda()
-                com_feat = feats[data[2]].cuda()
+                ref_feat = feats[data[1]].cuda() # 1, 10, 512
+                com_feat = feats[data[2]].cuda() # 1, 10, 512
+                # breakpoint()
 
                 if self.__model__.module.__L__.test_normalize:
                     ref_feat = F.normalize(ref_feat, p=2, dim=1)
                     com_feat = F.normalize(com_feat, p=2, dim=1)
 
-                dist = torch.cdist(ref_feat.reshape(num_eval, -1), com_feat.reshape(num_eval, -1)).detach().cpu().numpy()
+                dist = torch.cdist(ref_feat.reshape(num_eval, -1), com_feat.reshape(num_eval, -1)).detach().cpu().numpy() # 10 x 10
+                # breakpoint()
 
                 score = -1 * numpy.mean(dist)
 
