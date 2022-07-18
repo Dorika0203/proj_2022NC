@@ -12,8 +12,8 @@ warnings.simplefilter("ignore")
 
 
 DB_PATH = "/SGV/speechdb/ENG/LibriSpeech/LibriSpeech_wav/"
-# EMBED_DIR = '/home/doyeolkim/libri_emb/default'
-EMBED_DIR = '/home/doyeolkim/libri_emb/trimmed'
+# EMBED_DIR = '/home/doyeolkim/libri_emb/base/'
+EMBED_DIR = '/home/doyeolkim/libri_emb/trimmed/'
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Default parser args
@@ -101,7 +101,7 @@ if args.config is not None:
 
 
 
-def get_file_dict(DIR_list):
+def get_file_dict_libri(DIR_list):
     '''
     Generate file dictionary from passed directory list.
     (ex) DIR_list = [train-other-500, train-clean-100]
@@ -137,7 +137,8 @@ class MyDatasetLoader(Dataset):
         self.test_list  = test_list
 
     def __getitem__(self, index):
-        audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
+        # audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
+        audio = loadWAV_trimmed(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
         return torch.FloatTensor(audio), self.test_list[index]
 
     def __len__(self):
@@ -148,7 +149,9 @@ class MyDatasetLoader(Dataset):
     
 def main_worker(gpu, ngpus_per_node, args):
     
-    spk_list, file_dict, dir_dict = get_file_dict(['train-clean-100', 'train-clean-360', 'dev-clean'])
+    if not os.path.exists(EMBED_DIR):
+        os.mkdir(EMBED_DIR)
+    spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
     args.gpu = gpu
     s = SpeakerNet(**vars(args))
 
@@ -186,17 +189,13 @@ def main_worker(gpu, ngpus_per_node, args):
         embedding_dataloader = torch.utils.data.DataLoader(embedding_dataset, batch_size=1, shuffle=False, num_workers=args.nDataLoaderThread, drop_last=False, sampler=sampler)
         
         out_list = []
-        # used_list = []
         for idx, data in enumerate(embedding_dataloader):
             out = s.forward(data[0][0]).detach().cpu().numpy()
             out_list.append(out)
-            # used_list.append(data[1])
             
         out_ndarr = np.array(out_list)
-        # out_file = np.array(used_list, dtype=object)
         np.save(EMBED_DIR+'op_{}.npy'.format(spk), out_ndarr)
         print('\r{}/{}, shape={}'.format(i+1, len(spk_list), out_ndarr.shape), end="")
-        # np.save(EMBED_DIR+'fn_{}.npy'.format(spk), out_file, allow_pickle=True)
     return
 
 

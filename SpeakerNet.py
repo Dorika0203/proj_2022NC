@@ -211,8 +211,8 @@ class ModelTrainer(object):
                 if len(data) == 2:
                     data = [random.randint(0, 1)] + data
 
-                ref_feat = feats[data[1]].cuda() # 1, 10, 512
-                com_feat = feats[data[2]].cuda() # 1, 10, 512
+                ref_feat = feats[data[1]].cuda() # 10, 512
+                com_feat = feats[data[2]].cuda() # 10, 512
 
                 if self.__model__.module.__L__.test_normalize:
                     ref_feat = F.normalize(ref_feat, p=2, dim=1)
