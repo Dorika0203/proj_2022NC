@@ -9,11 +9,13 @@ from DatasetLoader import *
 import torch.distributed as dist
 import torch.multiprocessing as mp
 warnings.simplefilter("ignore")
+import csv
 
 
 DB_PATH = "/SGV/speechdb/ENG/LibriSpeech/LibriSpeech_wav/"
 # EMBED_DIR = '/home/doyeolkim/libri_emb/base/'
-EMBED_DIR = '/home/doyeolkim/libri_emb/trimmed/'
+# EMBED_DIR = '/home/doyeolkim/libri_emb/trimmed/'
+EMBED_DIR = '/home/doyeolkim/libri_emb/test/'
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Default parser args
@@ -137,8 +139,8 @@ class MyDatasetLoader(Dataset):
         self.test_list  = test_list
 
     def __getitem__(self, index):
-        # audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
-        audio = loadWAV_trimmed(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
+        audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
+        # audio = loadWAV_trimmed(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
         return torch.FloatTensor(audio), self.test_list[index]
 
     def __len__(self):
@@ -175,6 +177,9 @@ def main_worker(gpu, ngpus_per_node, args):
         print("Model {} loaded!".format(args.initial_model))
         
     for i, spk in enumerate(spk_list):
+        csv_file = open(EMBED_DIR+'op_{}.csv'.format(spk), 'w', newline='')
+        csv_writer = csv.writer(csv_file)
+        
         file_list = file_dict[spk]
         file_list = [str.split(i, '-')[0] + '/' + str.split(i, '-')[1] + '/' + i for i in file_list]
         file_path = DB_PATH + dir_dict[spk] + '/'
@@ -188,14 +193,27 @@ def main_worker(gpu, ngpus_per_node, args):
             sampler = None
         embedding_dataloader = torch.utils.data.DataLoader(embedding_dataset, batch_size=1, shuffle=False, num_workers=args.nDataLoaderThread, drop_last=False, sampler=sampler)
         
+        
+        # write speaker specific data information
+        # (n_dir, n_files_dir[0], n_files_dir[1], ..., n_files_dir[n_dir-1])
+        # category_dict = {}
+        
+        
         out_list = []
         for idx, data in enumerate(embedding_dataloader):
+                
             out = s.forward(data[0][0]).detach().cpu().numpy()
             out_list.append(out)
             
+            loaded_wav = str.split(data[1][0], sep='/')[2] # 374-180298-0039-norm.wav
+            csv_writer.writerow([idx, loaded_wav])
+            
         out_ndarr = np.array(out_list)
         np.save(EMBED_DIR+'op_{}.npy'.format(spk), out_ndarr)
+        csv_file.close()
         print('\r{}/{}, shape={}'.format(i+1, len(spk_list), out_ndarr.shape), end="")
+        # print('\r{}/{}'.format(i+1, len(spk_list)), end="")
+        
     return
 
 
