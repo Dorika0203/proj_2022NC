@@ -76,6 +76,8 @@ parser.add_argument('--port',           type=str,   default="8888", help='Port f
 parser.add_argument('--distributed',    dest='distributed', action='store_true', help='Enable distributed training')
 parser.add_argument('--mixedprec',      dest='mixedprec',   action='store_true', help='Enable mixed precision training')
 args = parser.parse_args(args=[])
+
+
 ## Parse YAML
 def find_option_type(key, parser):
     for opt in parser._get_optional_actions():

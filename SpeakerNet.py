@@ -22,11 +22,10 @@ class WrappedModel(nn.Module):
     def forward(self, x, label=None):
         return self.module(x, label)
 
+
 class SpeakerNet(nn.Module):
     
-    
     # SpeakerNet: Model과 Loss Function을 같이 묶어서 처리함.
-    
     
     def __init__(self, model, optimizer, trainfunc, nPerSpeaker, **kwargs):
         super(SpeakerNet, self).__init__()
