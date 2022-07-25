@@ -1,16 +1,16 @@
 import sys, time, os, argparse
 import yaml
-import numpy as np
 import torch
 import warnings
-from tuneThreshold import *
-from SpeakerNet import *
-from DatasetLoader import *
 import torch.distributed as dist
 import torch.multiprocessing as mp
-import datetime
-import m_network
-import zipfile
+import glob
+from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
+
+
+from m_utils import *
+from m_network import *
+from m_DataLoader import *
 warnings.simplefilter("ignore")
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
@@ -21,13 +21,15 @@ parser = argparse.ArgumentParser(description = "SpeakerNet")
 parser.add_argument('--config',         type=str,   default=None,   help='Config YAML file')
 
 ## Data loader
-parser.add_argument('--batch_size',     type=int,   default=200,    help='Batch size, number of speakers per batch')
+
+parser.add_argument('--batch_size',     type=int,   default=1000,    help='Batch size, number of speakers per batch')
 parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number of loader threads')
+parser.add_argument('--seed',           type=int,   default=10,     help='Seed for the random number generator')
 
 ## Training details
-parser.add_argument('--test_interval',  type=int,   default=10,     help='Test and save every [test_interval] epochs')
-parser.add_argument('--max_epoch',      type=int,   default=500,    help='Maximum number of epochs')
-parser.add_argument('--trainfunc',      type=str,   default="",     help='Loss function')
+parser.add_argument('--test_interval',  type=int,   default=5,     help='Test and save every [test_interval] epochs')
+parser.add_argument('--max_epoch',      type=int,   default=100,    help='Maximum number of epochs')
+parser.add_argument('--trainfunc',      type=str,   default="MSE",     help='Loss function')
 
 ## Optimizer
 parser.add_argument('--optimizer',      type=str,   default="adam", help='sgd or adam')
@@ -46,11 +48,9 @@ parser.add_argument('--save_path',      type=str,   default="exp_emb/temp", help
 
 ## Training and test data
 parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list')
-parser.add_argument('--test_list',      type=str,   default="data/test_list.txt",   help='Evaluation list')
+parser.add_argument('--test_list',      type=str,   default="data/test_list2.txt",   help='Evaluation list')
 parser.add_argument('--train_path',     type=str,   default="/home/doyeolkim/vox_emb/train/", help='Absolute path to the train set')
 parser.add_argument('--test_path',      type=str,   default="/home/doyeolkim/vox_emb/test/", help='Absolute path to the test set')
-TRAIN_PATH = '/home/doyeolkim/vox_emb/train/'
-VALID_PATH = '/home/doyeolkim/vox_emb/test/'
 
 ## Model definition
 parser.add_argument('--model',          type=str,   default="m_LinearNet",     help='Name of model definition')
@@ -72,15 +72,6 @@ def find_option_type(key, parser):
     raise ValueError
 
 
-
-## ===== ===== ===== ===== ===== ===== ===== =====
-## config 파일 경로로 설정할 거면 여기
-args.config = None
-args.config = './configs/test.yaml'
-## ===== ===== ===== ===== ===== ===== ===== =====
-
-
-
 if args.config is not None:
     with open(args.config, "r") as f:
         yml_config = yaml.load(f, Loader=yaml.FullLoader)
@@ -90,57 +81,6 @@ if args.config is not None:
             args.__dict__[k] = typ(v)
         else:
             sys.stderr.write("Ignored unknown parameter {} in yaml.\n".format(k))
-            
-            
-
-
-class train_dataset_loader(Dataset):
-    def __init__(self, train_list_file, train_path, **kwargs):
-
-        self.train_list_file = train_list_file
-        
-        # Read training files
-        with open(train_list_file) as dataset_file:
-            lines = dataset_file.readlines()
-
-        # Make a dictionary of ID names and ID indices
-        dictkeys = list(set([x.split()[0] for x in lines]))
-        dictkeys.sort()
-        dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
-
-        # Parse the training list into file names and ID indices
-        self.data_list  = []
-        self.data_label = []
-        
-        for lidx, line in enumerate(lines):
-            data = line.strip().split()
-
-            speaker_label = dictkeys[data[0]]
-            # filename = os.path.join(train_path,data[1])
-            filename = os.path.join(train_path,data[1][:-3]+'npy')
-            
-            self.data_label.append(speaker_label)
-            self.data_list.append(filename)
-
-    def __getitem__(self, indices):
-
-        feat = []
-        for index in indices:
-            dat = numpy.load(self.data_list[index])
-            feat.append(dat)
-        
-        return torch.FloatTensor(feat), self.data_label[index]
-
-    def __len__(self):
-        return len(self.data_list)
-
-
-    
-    
-    
-    
-    
-    
     
     
 def main_worker(gpu, ngpus_per_node, args):
@@ -148,8 +88,7 @@ def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
 
     ## Load models
-    # s = SpeakerNet(**vars(args))
-    s = m_network.EmbedNet(**vars(args))
+    s = EmbedNet(**vars(args))
 
     if args.distributed:
         os.environ['MASTER_ADDR']='localhost'
@@ -160,26 +99,29 @@ def main_worker(gpu, ngpus_per_node, args):
         torch.cuda.set_device(args.gpu)
         s.cuda(args.gpu)
 
-        s = torch.nn.parallel.DistributedDataParallel(s, device_ids=[args.gpu], find_unused_parameters=True)
+        s = torch.nn.parallel.DistributedDataParallel(s, device_ids=[args.gpu], find_unused_parameters=False)
 
         print('Loaded the model on GPU {:d}'.format(args.gpu))
 
     else:
-        s = WrappedModel(s).cuda(args.gpu)
+        s = WrappedModel(model=s).cuda(args.gpu)
 
     it = 1
-    eers = [100]
 
     if args.gpu == 0:
         ## Write args to scorefile
         scorefile   = open(args.result_save_path+"/scores.txt", "a+")
 
     ## Initialise trainer and data loader
-    train_dataset = train_dataset_loader(**vars(args))
+    train_dataset = MyDataset(args.train_list, args.train_path, **vars(args))
 
-    train_sampler = train_dataset_sampler(train_dataset, **vars(args))
-
-    train_loader = torch.utils.data.DataLoader(
+    # train_sampler = TrainSampler(train_dataset, **vars(args))
+    if args.distributed:
+        train_sampler = DistributedSampler(train_dataset)
+    else:
+        train_sampler = SequentialSampler(train_dataset)
+        
+    train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
         num_workers=args.nDataLoaderThread,
@@ -189,7 +131,7 @@ def main_worker(gpu, ngpus_per_node, args):
         drop_last=True,
     )
 
-    trainer     = ModelTrainer(s, **vars(args))
+    trainer = ModelTrainer(s, **vars(args))
 
     ## Load model weights
     modelfiles = glob.glob('%s/model0*.model'%args.model_save_path)
@@ -206,74 +148,47 @@ def main_worker(gpu, ngpus_per_node, args):
     for ii in range(1,it):
         trainer.__scheduler__.step()
 
+
+
     ## Evaluation code - must run on single GPU
     if args.eval == True:
-
-        pytorch_total_params = sum(p.numel() for p in s.module.__S__.parameters())
-
-        print('Total parameters: ',pytorch_total_params)
-        print('Test list',args.test_list)
-        
-        sc, lab, _ = trainer.evaluateFromList(**vars(args))
-
-        if args.gpu == 0:
-
-            result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-
-            fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
-            mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, args.dcf_p_target, args.dcf_c_miss, args.dcf_c_fa)
-
-            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "VEER {:2.4f}".format(result[1]), "MinDCF {:2.5f}".format(mindcf))
-
+        # pytorch_total_params = sum(p.numel() for p in s.module.__S__.parameters())
+        # print('Total parameters: ',pytorch_total_params)
+        # print('Test list',args.test_list)
+        # sc, lab, _ = trainer.evaluateFromList(**vars(args))
+        # if args.gpu == 0:
+        #     result = tuneThresholdfromScore(sc, lab, [1, 0.1])
+        #     fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
+        #     mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, args.dcf_p_target, args.dcf_c_miss, args.dcf_c_fa)
+        #     print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "VEER {:2.4f}".format(result[1]), "MinDCF {:2.5f}".format(mindcf))
         return
-
-    ## Save training code and params
-    if args.gpu == 0:
-        pyfiles = glob.glob('./*.py')
-        strtime = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-
-        zipf = zipfile.ZipFile(args.result_save_path+ '/run%s.zip'%strtime, 'w', zipfile.ZIP_DEFLATED)
-        for file in pyfiles:
-            zipf.write(file)
-        zipf.close()
-
-        with open(args.result_save_path + '/run%s.cmd'%strtime, 'w') as f:
-            f.write('%s'%args)
 
     ## Core training script
     for it in range(it,args.max_epoch+1):
-
-        train_sampler.set_epoch(it)
+        
+        if args.distributed:
+            train_sampler.set_epoch(it)
 
         clr = [x['lr'] for x in trainer.__optimizer__.param_groups]
 
-        loss, traineer = trainer.train_network(train_loader, verbose=(args.gpu == 0))
+        loss = trainer.train_network(train_loader, verbose=(args.gpu == 0))
 
         if args.gpu == 0:
-            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, TEER/TAcc {:2.2f}, TLOSS {:f}, LR {:f}".format(it, traineer, loss, max(clr)))
-            scorefile.write("Epoch {:d}, TEER/TAcc {:2.2f}, TLOSS {:f}, LR {:f} \n".format(it, traineer, loss, max(clr)))
-
+            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, TLOSS {:f}, LR {:f}".format(it, loss, max(clr)))
+            scorefile.write("Epoch {:d}, TLOSS {:f}, LR {:f} \n".format(it, loss, max(clr)))
+            scorefile.flush()
+            
+            
+        '''
+        Validation 파트
+        '''
         if it % args.test_interval == 0:
 
-            sc, lab, _ = trainer.evaluateFromList(**vars(args))
-
+            mean_loss = trainer.evaluateFromList(**vars(args))
             if args.gpu == 0:
-                
-                result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-
-                fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
-                mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, args.dcf_p_target, args.dcf_c_miss, args.dcf_c_fa)
-
-                eers.append(result[1])
-
-                print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, VEER {:2.4f}, MinDCF {:2.5f}".format(it, result[1], mindcf))
-                scorefile.write("Epoch {:d}, VEER {:2.4f}, MinDCF {:2.5f}\n".format(it, result[1], mindcf))
-
+                print('\n',' Epoch {:d}, VLoss {:2.6f}'.format(it, mean_loss))
+                scorefile.write("[Val] Epoch {:d}, VLoss {:2.6f}\n".format(it, mean_loss))
                 trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
-
-                with open(args.model_save_path+"/model%09d.eer"%it, 'w') as eerfile:
-                    eerfile.write('{:2.4f}'.format(result[1]))
-
                 scorefile.flush()
 
     if args.gpu == 0:

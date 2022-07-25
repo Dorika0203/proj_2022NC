@@ -15,7 +15,8 @@ import shutil
 화자 단위의 다 발화 임베딩 벡터 하나로 정리한다.
 '''
 
-EMBED_DIR = "/home/doyeolkim/vox_emb/test/"
+# EMBED_DIR = "/home/doyeolkim/vox_emb/test/"
+EMBED_DIR = "/home/doyeolkim/vox_emb/train/"
 
 
 def generate_total_npy(target_path):
@@ -34,29 +35,23 @@ def generate_total_npy(target_path):
                 
                 assert emb.shape == (10,512)
                 
-                
                 emb = np.mean(emb, axis=0)
-                temp = torch.tensor(emb)
-                print(temp.shape)
-                emb2 = torch.nn.functional.normalize(temp, p=2)
-                print(emb2.shape)
+                # emb = emb / np.linalg.norm(emb)
+                emb = np.array(torch.nn.functional.normalize(torch.tensor(emb), p=2, dim=0))
                 
-                emb = emb / np.linalg.norm(emb)
-                print(np.max(np.abs(emb-emb2)))
-                return
                 np_list.append(emb)
     
-    return np.mean(np.array(np_list), axis=0)
-
+    embs = np.array(np_list)
+    return np.mean(embs, axis=0)
 
 spk_list = []
-
 for i in os.listdir(EMBED_DIR):
     if os.path.isdir(EMBED_DIR+i):
         spk_list.append(i)
 
-print('spk_length: ', len(spk_list))
-retval = generate_total_npy(EMBED_DIR+spk_list[0])
+for i, spk in enumerate(spk_list):
+    mul_emb = generate_total_npy(EMBED_DIR+spk)
+    np.save(EMBED_DIR+'{}.npy'.format(spk), mul_emb)
+    print('\rprocessing ({}/{})'.format(i+1, len(spk_list)), end='')
 
-# print(spk_list[0], len(retval))
-# print(retval[0].shape, retval[1].shape)        
+print()

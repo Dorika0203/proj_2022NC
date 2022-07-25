@@ -108,8 +108,6 @@ class ResNetSE(nn.Module):
         # B, 256, 5, 26
         x = x.reshape(x.size()[0],-1,x.size()[-1])
         # B, 1280, 26 => frame level features (1280: features per time frame axis, 26: time frame axis)
-        # Q. time frame axis가 202에서 26으로 축소되면서, 여러 윈도위의 피쳐들이 하나의 큰 윈도우 피쳐들로 합성됨.
-        # 이렇게 해도 될까?
         
         w = self.attention(x)
 
