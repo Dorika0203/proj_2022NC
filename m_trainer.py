@@ -6,6 +6,10 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import glob
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
+from tuneThreshold import *
+# from torch.utils.tensorboard import SummaryWriter
+from matplotlib import pyplot as plt
+
 
 
 from m_utils import *
@@ -152,18 +156,18 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Evaluation code - must run on single GPU
     if args.eval == True:
-        # pytorch_total_params = sum(p.numel() for p in s.module.__S__.parameters())
-        # print('Total parameters: ',pytorch_total_params)
-        # print('Test list',args.test_list)
-        # sc, lab, _ = trainer.evaluateFromList(**vars(args))
-        # if args.gpu == 0:
-        #     result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-        #     fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
-        #     mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, args.dcf_p_target, args.dcf_c_miss, args.dcf_c_fa)
-        #     print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "VEER {:2.4f}".format(result[1]), "MinDCF {:2.5f}".format(mindcf))
+        pytorch_total_params = sum(p.numel() for p in s.module.__S__.parameters())
+        print('Total parameters: ',pytorch_total_params)
+        print('Test list',args.test_list)
+        sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
+        if args.gpu == 0:
+            result = tuneThresholdfromScore(sc, lab, [1, 0.1])
+            fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
+            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Test EER {:2.4f}".format(result[1]))
         return
 
     ## Core training script
+    
     for it in range(it,args.max_epoch+1):
         
         if args.distributed:
@@ -190,9 +194,12 @@ def main_worker(gpu, ngpus_per_node, args):
                 scorefile.write("[Val] Epoch {:d}, VLoss {:2.6f}\n".format(it, mean_loss))
                 trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
                 scorefile.flush()
-
+                
+                
+    # Save Result
     if args.gpu == 0:
         scorefile.close()
+    
 
 
 

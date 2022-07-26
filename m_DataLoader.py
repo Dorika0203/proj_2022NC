@@ -54,11 +54,32 @@ class MyDataset(Dataset):
         dat = numpy.load(self.data_list[index])
         
         # frame by 평균, 후 L2 Normalization
-        dat = numpy.mean(dat, axis=0)
         dat = torch.FloatTensor(dat)
+        dat = torch.mean(dat, dim=0)
         dat = torch.nn.functional.normalize(dat, p=2, dim=0)
         
         return dat, self.data_label[index]
 
     def __len__(self):
         return len(self.data_list)
+
+
+class MyTestDataset(Dataset):
+    def __init__(self, test_list, test_path, **kwargs):
+        
+        self.test_path  = test_path
+        self.test_list = [i[:-3]+'npy' for i in test_list]
+
+    def __getitem__(self, index):
+        embed = numpy.load(os.path.join(self.test_path,self.test_list[index]))
+        
+        # frame by 평균, 후 L2 Normalization
+        embed = torch.FloatTensor(embed)
+        embed = torch.mean(embed, dim=0)
+        embed = torch.nn.functional.normalize(embed, p=2, dim=0)
+        
+        # audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
+        return embed, self.test_list[index]
+
+    def __len__(self):
+        return len(self.test_list)
