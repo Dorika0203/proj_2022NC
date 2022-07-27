@@ -13,9 +13,9 @@ import csv
 
 
 DB_PATH = "/SGV/speechdb/ENG/LibriSpeech/LibriSpeech_wav/"
-# EMBED_DIR = '/home/doyeolkim/libri_emb/base/'
+EMBED_DIR = '/home/doyeolkim/libri_emb/base/'
 # EMBED_DIR = '/home/doyeolkim/libri_emb/trimmed/'
-EMBED_DIR = '/home/doyeolkim/libri_emb/test/'
+# EMBED_DIR = '/home/doyeolkim/libri_emb/uneval/'
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Default parser args
@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description = "SpeakerNet")
 parser.add_argument('--config',         type=str,   default=None,   help='Config YAML file')
 ## Data loader
 parser.add_argument('--max_frames',     type=int,   default=200,    help='Input length to the network for training')
-parser.add_argument('--eval_frames',    type=int,   default=300,    help='Input length to the network for testing 0 uses the whole files')
+parser.add_argument('--eval_frames',    type=int,   default=400,    help='Input length to the network for testing 0 uses the whole files')
 parser.add_argument('--batch_size',     type=int,   default=200,    help='Batch size, number of speakers per batch')
 parser.add_argument('--max_seg_per_spk', type=int,  default=500,    help='Maximum number of utterances per speaker per epoch')
 parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number of loader threads')
@@ -34,7 +34,7 @@ parser.add_argument('--seed',           type=int,   default=10,     help='Seed f
 ## Training details
 parser.add_argument('--test_interval',  type=int,   default=10,     help='Test and save every [test_interval] epochs')
 parser.add_argument('--max_epoch',      type=int,   default=500,    help='Maximum number of epochs')
-parser.add_argument('--trainfunc',      type=str,   default="",     help='Loss function')
+parser.add_argument('--trainfunc',      type=str,   default="softmaxproto",     help='Loss function')
 ## Optimizer
 parser.add_argument('--optimizer',      type=str,   default="adam", help='sgd or adam')
 parser.add_argument('--scheduler',      type=str,   default="steplr", help='Learning rate scheduler')
@@ -53,8 +53,8 @@ parser.add_argument('--dcf_p_target',   type=float, default=0.05,   help='A prio
 parser.add_argument('--dcf_c_miss',     type=float, default=1,      help='Cost of a missed detection')
 parser.add_argument('--dcf_c_fa',       type=float, default=1,      help='Cost of a spurious detection')
 ## Load and save
-parser.add_argument('--initial_model',  type=str,   default="",     help='Initial model weights')
-parser.add_argument('--save_path',      type=str,   default="exps/exp1", help='Path for model and logs')
+parser.add_argument('--initial_model',  type=str,   default="baseline_v2_ap.model",     help='Initial model weights')
+parser.add_argument('--save_path',      type=str,   default="exps/test", help='Path for model and logs')
 ## Training and test data
 parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list')
 parser.add_argument('--test_list',      type=str,   default="data/test_list.txt",   help='Evaluation list')
@@ -63,10 +63,10 @@ parser.add_argument('--test_path',      type=str,   default="data/voxceleb1", he
 parser.add_argument('--musan_path',     type=str,   default="data/musan_split", help='Absolute path to the test set')
 parser.add_argument('--rir_path',       type=str,   default="data/RIRS_NOISES/simulated_rirs", help='Absolute path to the test set')
 ## Model definition
-parser.add_argument('--n_mels',         type=int,   default=40,     help='Number of mel filterbanks')
-parser.add_argument('--log_input',      type=bool,  default=False,  help='Log input features')
-parser.add_argument('--model',          type=str,   default="",     help='Name of model definition')
-parser.add_argument('--encoder_type',   type=str,   default="SAP",  help='Type of encoder')
+parser.add_argument('--n_mels',         type=int,   default=64,     help='Number of mel filterbanks')
+parser.add_argument('--log_input',      type=bool,  default=True,  help='Log input features')
+parser.add_argument('--model',          type=str,   default="ResNetSE34V2",     help='Name of model definition')
+parser.add_argument('--encoder_type',   type=str,   default="ASP",  help='Type of encoder')
 parser.add_argument('--nOut',           type=int,   default=512,    help='Embedding size in the last FC layer')
 parser.add_argument('--sinc_stride',    type=int,   default=10,    help='Stride size of the first analytic filterbank layer of RawNet3')
 ## For test only
@@ -88,7 +88,6 @@ def find_option_type(key, parser):
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## config 파일 경로로 설정할 거면 여기
 args.config = None
-args.config = './configs/test.yaml'
 ## ===== ===== ===== ===== ===== ===== ===== =====
 
 if args.config is not None:
@@ -155,9 +154,11 @@ def main_worker(gpu, ngpus_per_node, args):
     
     if not os.path.exists(EMBED_DIR):
         os.mkdir(EMBED_DIR)
-    spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
+    # spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
+    spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100'])
     args.gpu = gpu
     s = SpeakerNet(**vars(args))
+    s.eval()
 
     if args.distributed:
         os.environ['MASTER_ADDR']='localhost'
@@ -203,8 +204,8 @@ def main_worker(gpu, ngpus_per_node, args):
         
         out_list = []
         for idx, data in enumerate(embedding_dataloader):
-                
-            out = s.forward(data[0][0]).detach().cpu().numpy()
+            with torch.no_grad():
+                out = s.forward(data[0][0]).detach().cpu().numpy()
             out_list.append(out)
             
             loaded_wav = str.split(data[1][0], sep='/')[2] # 374-180298-0039-norm.wav
