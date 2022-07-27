@@ -62,7 +62,7 @@ class MyLinearNetv3(nn.Module):
     
     def __init__(self, in_features=512, out_features=512):
         
-        super(MyLinearNetv2, self).__init__()
+        super(MyLinearNetv3, self).__init__()
         
         self.l1 = nn.Linear(in_features=in_features, out_features=in_features*2)
         self.l2 = nn.Linear(in_features=2*in_features, out_features=2*in_features)
@@ -95,11 +95,12 @@ class MyLinearNetv3(nn.Module):
 def MainModel(model, **kwargs):
     
     m = None
-    print('---------------', model)
     if model == 'MyLinearNet':
         m = MyLinearNet(in_features=512, out_features=512)
     elif model == 'MyLinearNetv2':
         m = MyLinearNetv2(in_features=512, out_features=512)
+    elif model == 'MyLinearNetv3':
+        m = MyLinearNetv3(in_features=512, out_features=512)
     else:
         raise ValueError("such model {} not exist.".format(model))
     return m

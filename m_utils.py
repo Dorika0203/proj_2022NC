@@ -25,12 +25,12 @@ def generate_graph(save_path, **kwargs):
         
         # train loss result
         if tokens[0].find('Val') == -1:
-            tepoch.append(tokens[1])
+            tepoch.append(int(tokens[1][:-1]))
             tloss.append(float(tokens[3][:-1]))
         
         else:
-            vepoch.append(tokens[2])
-            vloss.append(float(tokens[4]))
+            vepoch.append(int(tokens[2][:-1]))
+            vloss.append(float(tokens[4][:-1]))
 
 
     plt.figure(figsize=(8, 8))
@@ -40,6 +40,7 @@ def generate_graph(save_path, **kwargs):
     plt.plot(tepoch, tloss, 'b-')
     plt.plot(vepoch, vloss, 'r-')
     plt.savefig(os.path.join(save_path, 'result/fig.png'))
+    print("Image saved.")
     f.close()
 
 
@@ -124,7 +125,7 @@ class ModelTrainer(object):
     ## Evaluate from list
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
-    def evaluateFromList(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=1, num_eval=10, **kwargs):
+    def validationLoss(self, valid_list, valid_path, nDataLoaderThread, distributed, print_interval=1, **kwargs):
 
         if distributed:
             rank = torch.distributed.get_rank()
@@ -134,7 +135,7 @@ class ModelTrainer(object):
         self.__model__.eval()
 
         ## Define test data loader
-        test_dataset = MyDataset(test_list, test_path, **kwargs)
+        test_dataset = MyDataset(valid_list, valid_path, **kwargs)
 
         # test_sampler = TrainSampler(train_dataset, **vars(args))
         if distributed:
@@ -213,10 +214,8 @@ class ModelTrainer(object):
         for idx, data in enumerate(test_loader):
             
             inp1 = data[0][0].cuda()
-            breakpoint()
             with torch.no_grad():
                 ref_feat = self.__model__(inp1).detach().cpu()
-            breakpoint()
             feats[data[1][0]] = ref_feat
             telapsed = time.time() - tstart
 

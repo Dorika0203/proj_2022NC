@@ -8,7 +8,6 @@ import glob
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
 from tuneThreshold import *
 # from torch.utils.tensorboard import SummaryWriter
-from matplotlib import pyplot as plt
 
 
 
@@ -51,9 +50,11 @@ parser.add_argument('--initial_model',  type=str,   default="",     help='Initia
 parser.add_argument('--save_path',      type=str,   default="exp_emb/temp", help='Path for model and logs')
 
 ## Training and test data
-parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list')
-parser.add_argument('--test_list',      type=str,   default="data/test_list2.txt",   help='Evaluation list')
+parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list, 1 emb file per line')
+parser.add_argument('--valid_list',     type=str,   default="data/valid_list.txt",  help='Validation list, same as train list with different dataset')
+parser.add_argument('--test_list',      type=str,   default="data/test_list.txt",   help='Test list, 2 emb files per line')
 parser.add_argument('--train_path',     type=str,   default="/home/doyeolkim/vox_emb/train/", help='Absolute path to the train set')
+parser.add_argument('--valid_path',     type=str,   default="/home/doyeolkim/vox_emb/test/", help='Absolute path to the valid set')
 parser.add_argument('--test_path',      type=str,   default="/home/doyeolkim/vox_emb/test/", help='Absolute path to the test set')
 
 ## Model definition
@@ -77,6 +78,7 @@ def find_option_type(key, parser):
 
 
 if args.config is not None:
+    
     with open(args.config, "r") as f:
         yml_config = yaml.load(f, Loader=yaml.FullLoader)
     for k, v in yml_config.items():
@@ -85,6 +87,10 @@ if args.config is not None:
             args.__dict__[k] = typ(v)
         else:
             sys.stderr.write("Ignored unknown parameter {} in yaml.\n".format(k))
+    
+    
+    # set args.save to config file name
+    args.save_path = 'exp_emb/' + args.config.strip().split('/')[-1][:-5]
     
     
 def main_worker(gpu, ngpus_per_node, args):
@@ -162,7 +168,6 @@ def main_worker(gpu, ngpus_per_node, args):
         sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
         if args.gpu == 0:
             result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-            fnrs, fprs, thresholds = ComputeErrorRates(sc, lab)
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Test EER {:2.4f}".format(result[1]))
         return
 
@@ -188,10 +193,13 @@ def main_worker(gpu, ngpus_per_node, args):
         '''
         if it % args.test_interval == 0:
 
-            mean_loss = trainer.evaluateFromList(**vars(args))
+            mean_loss = trainer.validationLoss(**vars(args))
+            sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
+            
             if args.gpu == 0:
-                print('\n',' Epoch {:d}, VLoss {:2.6f}'.format(it, mean_loss))
-                scorefile.write("[Val] Epoch {:d}, VLoss {:2.6f}\n".format(it, mean_loss))
+                result = tuneThresholdfromScore(sc, lab, [1, 0.1])
+                print('\n',' Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}'.format(it, mean_loss, result[1]))
+                scorefile.write("--Val-- Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}\n".format(it, mean_loss, result[1]))
                 trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
                 scorefile.flush()
                 
@@ -199,8 +207,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # Save Result
     if args.gpu == 0:
         scorefile.close()
-    
-
+        generate_graph(**vars(args))
 
 
 
