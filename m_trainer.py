@@ -62,6 +62,7 @@ parser.add_argument('--model',          type=str,   default="m_LinearNet",     h
 
 ## For test only
 parser.add_argument('--eval',           dest='eval', action='store_true', help='Eval only')
+parser.add_argument('--check',           dest='check', action='store_true', help='Check EER of original method')
 
 ## Distributed and mixed precision training
 parser.add_argument('--port',           type=str,   default="8888", help='Port for distributed training, input as text')
@@ -166,6 +167,15 @@ def main_worker(gpu, ngpus_per_node, args):
         print('Total parameters: ',pytorch_total_params)
         print('Test list',args.test_list)
         sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
+        if args.gpu == 0:
+            result = tuneThresholdfromScore(sc, lab, [1, 0.1])
+            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Test EER {:2.4f}".format(result[1]))
+        return
+    
+    
+    ## Get Original EER
+    if args.check == True:
+        sc, lab, _ = trainer.get_original_result(**vars(args))
         if args.gpu == 0:
             result = tuneThresholdfromScore(sc, lab, [1, 0.1])
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Test EER {:2.4f}".format(result[1]))

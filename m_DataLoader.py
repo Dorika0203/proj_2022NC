@@ -83,3 +83,21 @@ class MyTestDataset(Dataset):
 
     def __len__(self):
         return len(self.test_list)
+
+
+
+
+class OriginalDataset(Dataset):
+    
+    def __init__(self, test_list, test_path, **kwargs):
+        
+        self.test_path  = test_path
+        self.test_list = [i[:-3]+'npy' for i in test_list]
+
+    def __getitem__(self, index):
+        embed = numpy.load(os.path.join(self.test_path,self.test_list[index]))
+        embed = torch.FloatTensor(embed)
+        return embed, self.test_list[index]
+
+    def __len__(self):
+        return len(self.test_list)
