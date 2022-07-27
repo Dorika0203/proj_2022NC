@@ -19,11 +19,11 @@ DB_PATH 디렉토리 내의 모든 wav 파일들에 대해
 임베딩 벡터 생성은 Clova ResNetSE34V2를 이용.
 '''
 
-# DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb1/test_wav/"
-# EMBED_DIR = '/home/doyeolkim/vox_emb/test/'
+DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb1/test_wav/"
+EMBED_DIR = '/home/doyeolkim/vox_emb/test/'
 
-DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb2/dev/aac/"
-EMBED_DIR = '/home/doyeolkim/vox_emb/train/'
+# DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb2/dev/aac/"
+# EMBED_DIR = '/home/doyeolkim/vox_emb/train/'
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Default parser args

@@ -15,8 +15,8 @@ import shutil
 화자 단위의 다 발화 임베딩 벡터 하나로 정리한다.
 '''
 
-# EMBED_DIR = "/home/doyeolkim/vox_emb/test/"
-EMBED_DIR = "/home/doyeolkim/vox_emb/train/"
+EMBED_DIR = "/home/doyeolkim/vox_emb/test/"
+# EMBED_DIR = "/home/doyeolkim/vox_emb/train/"
 
 
 def generate_total_npy(target_path):
