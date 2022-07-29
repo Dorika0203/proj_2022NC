@@ -92,15 +92,15 @@ class MyLinearNetv3(nn.Module):
         
         return o
 
-def MainModel(model, **kwargs):
+def MainModel(model, nOut, **kwargs):
     
     m = None
     if model == 'MyLinearNet':
-        m = MyLinearNet(in_features=512, out_features=512)
+        m = MyLinearNet(in_features=nOut, out_features=nOut)
     elif model == 'MyLinearNetv2':
-        m = MyLinearNetv2(in_features=512, out_features=512)
+        m = MyLinearNetv2(in_features=nOut, out_features=nOut)
     elif model == 'MyLinearNetv3':
-        m = MyLinearNetv3(in_features=512, out_features=512)
+        m = MyLinearNetv3(in_features=nOut, out_features=nOut)
     else:
         raise ValueError("such model {} not exist.".format(model))
     return m

@@ -5,13 +5,13 @@ import warnings
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import glob
-from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
+from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler, RandomSampler
 from tuneThreshold import *
 # from torch.utils.tensorboard import SummaryWriter
 
 
 
-from m_utils import *
+from m_network import *
 from m_network import *
 from m_DataLoader import *
 warnings.simplefilter("ignore")
@@ -24,12 +24,12 @@ parser = argparse.ArgumentParser(description = "SpeakerNet")
 parser.add_argument('--config',         type=str,   default=None,   help='Config YAML file')
 
 ## Data loader
-
 parser.add_argument('--batch_size',     type=int,   default=1000,    help='Batch size, number of speakers per batch')
 parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number of loader threads')
 parser.add_argument('--seed',           type=int,   default=10,     help='Seed for the random number generator')
+parser.add_argument('--max_seg_per_spk', type=int,  default=500,    help='Maximum number of utterances per speaker per epoch')
 
-## Training details
+## Training details``
 parser.add_argument('--test_interval',  type=int,   default=5,     help='Test and save every [test_interval] epochs')
 parser.add_argument('--max_epoch',      type=int,   default=100,    help='Maximum number of epochs')
 parser.add_argument('--trainfunc',      type=str,   default="MSE",     help='Loss function')
@@ -44,6 +44,8 @@ parser.add_argument('--weight_decay',   type=float, default=0,      help='Weight
 ## Loss functions
 parser.add_argument('--margin',         type=float, default=0.1,    help='Loss margin, only for some loss functions')
 parser.add_argument('--scale',          type=float, default=30,     help='Loss scale, only for some loss functions')
+parser.add_argument('--nPerSpeaker',    type=int,   default=1,      help='Number of utterances per speaker per batch, only for metric learning based losses')
+parser.add_argument('--nClasses',       type=int,   default=5994,   help='Number of speakers in the softmax layer, only for softmax-based losses')
 
 ## Load and save
 parser.add_argument('--initial_model',  type=str,   default="",     help='Initial model weights')
@@ -59,6 +61,7 @@ parser.add_argument('--test_path',      type=str,   default="/home/doyeolkim/vox
 
 ## Model definition
 parser.add_argument('--model',          type=str,   default="m_LinearNet",     help='Name of model definition')
+parser.add_argument('--nOut',           type=int,   default=512,    help='Embedding size in the last FC layer')
 
 ## For test only
 parser.add_argument('--eval',           dest='eval', action='store_true', help='Eval only')
@@ -125,12 +128,17 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Initialise trainer and data loader
     train_dataset = MyDataset(args.train_list, args.train_path, **vars(args))
-
-    # train_sampler = TrainSampler(train_dataset, **vars(args))
-    if args.distributed:
-        train_sampler = DistributedSampler(train_dataset)
-    else:
-        train_sampler = SequentialSampler(train_dataset)
+    
+    train_sampler = train_dataset_sampler(
+        data_source=train_dataset,
+        **vars(args)
+    )
+    
+    # if args.distributed:
+    #     train_sampler = DistributedSampler(train_dataset)
+    # else:
+    #     # train_sampler = SequentialSampler(train_dataset)
+    #     train_sampler = RandomSampler(train_dataset)
         
     train_loader = DataLoader(
         train_dataset,
@@ -203,12 +211,12 @@ def main_worker(gpu, ngpus_per_node, args):
         '''
         if it % args.test_interval == 0:
 
-            mean_loss = trainer.validationLoss(**vars(args))
+            mean_loss, mean_prec = trainer.validationLoss(**vars(args))
             sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
             
             if args.gpu == 0:
                 result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-                print('\n',' Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}'.format(it, mean_loss, result[1]))
+                print('\n',' Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, Vacc {:2.4f}'.format(it, mean_loss, result[1], mean_prec))
                 scorefile.write("--Val-- Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}\n".format(it, mean_loss, result[1]))
                 trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
                 scorefile.flush()

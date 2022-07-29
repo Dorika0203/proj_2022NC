@@ -154,8 +154,8 @@ def main_worker(gpu, ngpus_per_node, args):
     
     if not os.path.exists(EMBED_DIR):
         os.mkdir(EMBED_DIR)
-    # spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
-    spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100'])
+    spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
+    # spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100'])
     args.gpu = gpu
     s = SpeakerNet(**vars(args))
     s.eval()
