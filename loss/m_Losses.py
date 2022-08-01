@@ -1,5 +1,6 @@
 import torch.nn as nn
 import loss.softmaxproto2 as softmaxproto2
+import loss.softmax2 as softmax
 import torch
 
 class LossFunction(nn.Module):
@@ -10,7 +11,8 @@ class LossFunction(nn.Module):
         self.mse = nn.MSELoss()
         self.mae = nn.L1Loss()
         self.cs = nn.CosineSimilarity(dim=0)
-        self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
+        # self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
+        self.softmax = softmax.LossFunction(**kwargs)
 
     def forward(self, x, y):
         
@@ -23,18 +25,30 @@ class LossFunction(nn.Module):
         
         if self.trainfunc == 'MSE':
             loss = self.mse(x, mult_emb)
+            
         elif self.trainfunc == 'MAE':
             loss = self.mae(x, mult_emb)
+            
         elif self.trainfunc == 'CS':
             loss = self.cs(x, mult_emb)
+            
         elif self.trainfunc == 'MSE_CS':
             loss = self.cs(x, mult_emb) + self.mse(x, mult_emb)
-        elif self.trainfunc == 'MSE_SoftmaxProto':
-            loss, prec = self.softmaxproto(x, spk_label)
-            # breakpoint()
+            
+        elif self.trainfunc == 'MSE_Softmax':
+            loss, prec = self.softmax(x, spk_label)
             loss += self.mse(x, mult_emb)
-        elif self.trainfunc == 'SoftmaxProto':
-            loss, prec = self.softmaxproto(x, spk_label)
+            
+        elif self.trainfunc == 'Softmax':
+            loss, prec = self.softmax(x, spk_label)
+            
+        # elif self.trainfunc == 'MSE_SoftmaxProto':
+        #     loss, prec = self.softmaxproto(x, spk_label)
+        #     loss += self.mse(x, mult_emb)
+            
+        # elif self.trainfunc == 'SoftmaxProto':
+        #     loss, prec = self.softmaxproto(x, spk_label)
+            
         else:
             raise ValueError('No Loss function - {}'.format(self.trainfunc))
         

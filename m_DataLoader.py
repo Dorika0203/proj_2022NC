@@ -3,8 +3,6 @@ import numpy
 import torch
 import warnings
 import torch.distributed as dist
-import soundfile
-import random
 
 from torch.utils.data import Dataset
 
@@ -19,9 +17,10 @@ def round_down(num, divisor):
 # 끝
 class MyDataset(Dataset):
     
-    def __init__(self, data_list, data_path, **kwargs):
+    def __init__(self, data_list, data_path, nPerSpeaker, **kwargs):
 
         self.sing_emb_list = data_list
+        self.nPerSpeaker = nPerSpeaker
         
         # Read training files
         with open(data_list) as dataset_file:
@@ -54,17 +53,33 @@ class MyDataset(Dataset):
             self.data_label.append(data_label)
 
 
+
+        # # ONLY FOR DEBUGGING
+        # label_counter_dict = {}
+        # select_idx_list = []
+        # for idx, item in enumerate(self.data_label):
+        #     tmp = label_counter_dict.get(item, 0)
+        #     # 각 label 별 10개씩만 뽑기
+        #     if tmp > 10:
+        #         continue
+        #     tmp += 1
+        #     label_counter_dict[item] = tmp
+        #     select_idx_list.append(idx)
         
-        # # ONLY FOR TESTING CODE
-        # if len(self.sing_emb_list) > 1000000:
-        #     self.mult_emb_label = self.mult_emb_label[:len(self.mult_emb_label)//10]
-        #     self.sing_emb_list = self.sing_emb_list[:len(self.sing_emb_list)//10]
-        #     self.data_label = self.data_label[:len(self.data_label)//10]
+        # self.sing_emb_list = [self.sing_emb_list[sel_idx] for sel_idx in select_idx_list]
+        # self.mult_emb_label = [self.mult_emb_label[sel_idx] for sel_idx in select_idx_list]
+        # self.data_label = [self.data_label[sel_idx] for sel_idx in select_idx_list]
             
+    
+    def __getitem__(self, index):
+        if self.nPerSpeaker == 1:
+            return self.single_getitem(index)
+        else:
+            return self.multiple_getitem(index)
     
     
     # 한개씩 sampling 되는 경우 사용
-    def __getitem__(self, index):
+    def single_getitem(self, index):
 
         sing_emb = numpy.load(self.sing_emb_list[index])
         
@@ -77,7 +92,7 @@ class MyDataset(Dataset):
     
     
     # 여러개씩 sampling 되는 경우 사용
-    def __getitem__(self, indices):
+    def multiple_getitem(self, indices):
         
         sing_feat = []
         mult_feat = []
@@ -99,14 +114,10 @@ class MyDataset(Dataset):
             mult_feat.append(mult_emb)
             sing_feat.append(sing_emb)
         
-        # breakpoint()
-        
         sing_feat = torch.cat(sing_feat, dim=0)
         mult_feat = torch.cat(mult_feat, dim=0)
         # sing_feat = numpy.concatenate(sing_feat, axis=0)
         # mult_feat = numpy.concatenate(mult_feat, axis=0)
-        
-        # breakpoint()
         
         return sing_feat, (torch.FloatTensor(mult_feat), self.data_label[index])
 
@@ -155,6 +166,12 @@ class OriginalDataset(Dataset):
 
 
 
+'''
+nPerSpeaker를 반영하는 데이터셋 sampler
+각 batch에 다른 label(화자)의 데이터들이 들어가야 함.
+최소의 개수를 가지는 label에 맞게 모든 label의 데이터 개수가 맞춰짐
+train도 잘 안떨어지고, validation의 경우 크게 문제가 되는 것 같음
+'''
 class train_dataset_sampler(torch.utils.data.Sampler):
     def __init__(self, data_source, nPerSpeaker, max_seg_per_spk, batch_size, distributed, seed, **kwargs):
 
@@ -185,8 +202,6 @@ class train_dataset_sampler(torch.utils.data.Sampler):
         ## Group file indices for each class
         dictkeys = list(label2idx.keys())
         dictkeys.sort()
-        
-        # breakpoint()
 
         lol = lambda lst, sz: [lst[i:i+sz] for i in range(0, len(lst), sz)]
 
@@ -200,21 +215,14 @@ class train_dataset_sampler(torch.utils.data.Sampler):
             
             flattened_label.extend([findex] * (len(rp)))
             
-            # breakpoint()
-            
             for indices in rp:
-                
                 flattened_list.append([data[i] for i in indices])
-                
-                # breakpoint()
 
         ## Mix data in random order
         mixid           = torch.randperm(len(flattened_label), generator=g).tolist()
         mixlabel        = []
         mixmap          = []
-        
-        # breakpoint()
-        
+
         ## Prevent two pairs of the same speaker in the same batch
         for ii in mixid:
             startbatch = round_down(len(mixlabel), self.batch_size) # 200, 400, 600, ...
@@ -223,8 +231,6 @@ class train_dataset_sampler(torch.utils.data.Sampler):
                 mixmap.append(ii)
                 
         mixed_list = [flattened_list[i] for i in mixmap]
-        
-        # breakpoint()
 
         ## Divide data to each GPU
         if self.distributed:

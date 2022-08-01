@@ -5,7 +5,7 @@ import warnings
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import glob
-from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler, RandomSampler
+from torch.utils.data import DataLoader, RandomSampler
 from tuneThreshold import *
 # from torch.utils.tensorboard import SummaryWriter
 
@@ -60,8 +60,9 @@ parser.add_argument('--valid_path',     type=str,   default="/home/doyeolkim/vox
 parser.add_argument('--test_path',      type=str,   default="/home/doyeolkim/vox_emb/test/", help='Absolute path to the test set')
 
 ## Model definition
-parser.add_argument('--model',          type=str,   default="m_LinearNet",     help='Name of model definition')
-parser.add_argument('--nOut',           type=int,   default=512,    help='Embedding size in the last FC layer')
+parser.add_argument('--model',          type=str,   default="m_LinearNet", help='Name of model definition')
+parser.add_argument('--nOut',           type=int,   default=512,           help='Embedding size in the last FC layer')
+parser.add_argument('--activation',     type=str,   default="ReLU",        help='activation function between FC layers')
 
 ## For test only
 parser.add_argument('--eval',           dest='eval', action='store_true', help='Eval only')
@@ -113,7 +114,8 @@ def main_worker(gpu, ngpus_per_node, args):
         torch.cuda.set_device(args.gpu)
         s.cuda(args.gpu)
 
-        s = torch.nn.parallel.DistributedDataParallel(s, device_ids=[args.gpu], find_unused_parameters=False)
+        # s = torch.nn.parallel.DistributedDataParallel(s, device_ids=[args.gpu], find_unused_parameters=False)
+        s = torch.nn.parallel.DistributedDataParallel(s, device_ids=[args.gpu], find_unused_parameters=True)
 
         print('Loaded the model on GPU {:d}'.format(args.gpu))
 
@@ -129,16 +131,13 @@ def main_worker(gpu, ngpus_per_node, args):
     ## Initialise trainer and data loader
     train_dataset = MyDataset(args.train_list, args.train_path, **vars(args))
     
-    train_sampler = train_dataset_sampler(
-        data_source=train_dataset,
-        **vars(args)
-    )
-    
-    # if args.distributed:
-    #     train_sampler = DistributedSampler(train_dataset)
-    # else:
-    #     # train_sampler = SequentialSampler(train_dataset)
-    #     train_sampler = RandomSampler(train_dataset)
+    if args.nPerSpeaker != 1:
+        train_sampler = train_dataset_sampler(data_source=train_dataset, **vars(args))
+    else:
+        if args.distributed:
+            train_sampler = DistributedSampler(train_dataset)
+        else:
+            train_sampler = RandomSampler(train_dataset)
         
     train_loader = DataLoader(
         train_dataset,

@@ -1,14 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy, sys, random
+import numpy, sys, random, pdb
 import time, itertools, importlib
 import os
-from DatasetLoader import train_dataset_sampler
 
-from m_DataLoader import MyDataset, MyTestDataset, OriginalDataset
+from m_DataLoader import *
 from torch.cuda.amp import GradScaler
-from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
+from torch.utils.data import DataLoader, DistributedSampler
 
 from models.m_Models import *
 import loss.m_Losses
@@ -73,17 +72,12 @@ class EmbedNet(nn.Module):
         super(EmbedNet, self).__init__()
         
         self.nPerSpeaker = nPerSpeaker
-
-        # SpeakerNetModel = importlib.import_module("models." + model).__getattribute__("MainModel")
-        myModel = MainModel(model, **kwargs)
-        self.__S__ = myModel
-
-        # LossFunction = importlib.import_module("loss." + trainfunc).__getattribute__("LossFunction")
+        
+        self.__S__ = MainModel(model, **kwargs)
         self.__L__ = loss.m_Losses.LossFunction(**kwargs)
 
     def forward(self, data, label=None):
         
-        # breakpoint()
         data = data.reshape(-1, data.size()[-1]).cuda()
         outp = self.__S__.forward(data)
 
@@ -136,12 +130,11 @@ class ModelTrainer(object):
         acc = 0
 
         # tstart = time.time()
-        # breakpoint()
 
         for sing_emb, tup_lab in loader:
-            # breakpoint()
     
-            # data = data.transpose(1, 0)
+            # sing_emb = sing_emb.transpose(1,0) (얘가 sampler에서 생긴 문제였을수도 ?)
+            
             self.__model__.zero_grad()
             nloss, prec = self.__model__(sing_emb, tup_lab)
             nloss.backward()
@@ -166,7 +159,9 @@ class ModelTrainer(object):
 
         if self.lr_step == "epoch":
             self.__scheduler__.step()
-
+        
+        # sys.stdout.write('--------------counter: ' + str(counter) + '\n')
+        # sys.stdout.flush()
         return (loss / counter)
 
 
@@ -180,7 +175,7 @@ class ModelTrainer(object):
     ## Evaluate from list
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
-    def validationLoss(self, valid_list, valid_path, nDataLoaderThread, distributed, print_interval=1, **kwargs):
+    def validationLoss(self, valid_list, valid_path, nDataLoaderThread, distributed, print_interval=1, batch_size=1, nPerSpeaker=1, **kwargs):
 
         if distributed:
             rank = torch.distributed.get_rank()
@@ -190,13 +185,14 @@ class ModelTrainer(object):
         self.__model__.eval()
 
         ## Define test data loader
-        test_dataset = MyDataset(valid_list, valid_path, **kwargs)
-
-        test_sampler = train_dataset_sampler(test_dataset, distributed=distributed, **kwargs)
-        # if distributed:
-        #     test_sampler = DistributedSampler(test_dataset)
-        # else:
-        #     test_sampler = SequentialSampler(test_dataset)
+        test_dataset = MyDataset(valid_list, valid_path, nPerSpeaker=nPerSpeaker, **kwargs)
+        if nPerSpeaker != 1:
+            test_sampler = train_dataset_sampler(data_source=test_dataset, distributed=distributed, batch_size=1, **kwargs)
+        else:
+            if distributed:
+                test_sampler = DistributedSampler(test_dataset)
+            else:
+                test_sampler = None
             
             
         test_loader = DataLoader(
@@ -216,10 +212,13 @@ class ModelTrainer(object):
         for idx, (data, label) in enumerate(test_loader):
             with torch.no_grad():
                 nloss, prec1 = self.__model__(data, label)
+            # breakpoint()
             loss.append(nloss.detach().cpu().item())
-            prec.append(prec1.detach().cpu().item())
+            if prec1 is not None:
+                prec.append(prec1.detach().cpu().item())
             if idx % print_interval == 0 and rank == 0:
                 sys.stdout.write("\r[Val] Reading {:d} of {:d} ".format(idx, test_loader.__len__()))
+                sys.stdout.flush()
         
         if distributed:
             loss_all = [None for _ in range(0, torch.distributed.get_world_size())]
@@ -238,8 +237,10 @@ class ModelTrainer(object):
             
             loss = numpy.array(loss)
             prec = numpy.array(prec)
+            # sys.stdout.write('--------------len(loss): ' + str(len(loss)) + '\n')
+            # sys.stdout.flush()
             L = numpy.mean(loss)
-            P = numpy.mean(prec)
+            P = numpy.mean(prec) if len(prec) > 0 else -1
         
         return L, P
     
@@ -286,16 +287,15 @@ class ModelTrainer(object):
         ## Extract features for every image
         for idx, data in enumerate(test_loader):
             
-            inp1 = data[0][0].cuda()
+            # inp1 = data[0][0].cuda()
+            inp1 = data[0][0]
             with torch.no_grad():
                 ref_feat = self.__model__(inp1).detach().cpu()
             feats[data[1][0]] = ref_feat
             telapsed = time.time() - tstart
 
             if idx % print_interval == 0 and rank == 0:
-                sys.stdout.write(
-                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx, test_loader.__len__(), idx / telapsed, ref_feat.size()[1])
-                )
+                sys.stdout.write("\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx, test_loader.__len__(), idx / telapsed, ref_feat.size()[1]))
 
         all_scores = []
         all_labels = []
@@ -343,8 +343,8 @@ class ModelTrainer(object):
 
                 if idx % print_interval == 0:
                     telapsed = time.time() - tstart
-                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(idx, len(lines), idx / telapsed))
-                    sys.stdout.flush()
+                    sys.stdout.write("\rComputing {:d}/{:d}".format(idx, len(lines)))
+                    # sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)
     
@@ -362,8 +362,6 @@ class ModelTrainer(object):
             rank = torch.distributed.get_rank()
         else:
             rank = 0
-
-        self.__model__.eval()
 
         lines = []
         files = []
@@ -436,13 +434,20 @@ class ModelTrainer(object):
                 ref_feat = feats[data[1]].cuda() # 512
                 com_feat = feats[data[2]].cuda() # 512
                 
+                
+                # default
                 ref_feat = F.normalize(ref_feat, p=2, dim=1)
                 com_feat = F.normalize(com_feat, p=2, dim=1)
-                
-                # L2 distance
                 dist = torch.cdist(ref_feat, com_feat).detach().cpu().numpy()
-
                 score = -1 * numpy.mean(dist)
+                
+                # # MySingleEmbed
+                # ref_feat = torch.mean(ref_feat, dim=0)
+                # com_feat = torch.mean(com_feat, dim=0)
+                # ref_feat = F.normalize(ref_feat, p=2, dim=0)
+                # com_feat = F.normalize(com_feat, p=2, dim=0)
+                # dist = torch.dist(ref_feat, com_feat).detach().cpu().item()
+                # score = -1 * dist
 
                 all_scores.append(score)
                 all_labels.append(int(data[0]))
