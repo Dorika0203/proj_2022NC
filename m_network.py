@@ -24,6 +24,7 @@ def generate_graph(save_path, **kwargs):
     vloss = []
     vepoch = []
     veer = []
+    veer_libri = []
 
     for line in f.readlines():
         line = line.replace(',', '')
@@ -38,12 +39,14 @@ def generate_graph(save_path, **kwargs):
             vepoch.append(int(tokens[2]))
             vloss.append(float(tokens[4]))
             veer.append(float(tokens[6]))
+            veer_libri.append(float(tokens[8]))
 
     fig, ax1 = plt.subplots(figsize=(8,8))
     ax2 = ax1.twinx()
     ax1.plot(tepoch, tloss, **{'color': 'blue'}, label='train loss')
     ax1.plot(vepoch, vloss, **{'color': 'red'}, label='valid loss')
     ax2.plot(vepoch, veer, **{'color': 'orange'}, label='valid EER')
+    ax2.plot(vepoch, veer_libri, **{'color': 'pink'}, label='valid EER')
     fig.legend()
     plt.savefig(os.path.join(save_path, 'result/fig.png'))
     f.close()
@@ -159,8 +162,6 @@ class ModelTrainer(object):
         if self.lr_step == "epoch":
             self.__scheduler__.step()
         
-        # sys.stdout.write('--------------counter: ' + str(counter) + '\n')
-        # sys.stdout.flush()
         return (loss / counter)
 
 
@@ -236,8 +237,7 @@ class ModelTrainer(object):
             
             loss = numpy.array(loss)
             prec = numpy.array(prec)
-            # sys.stdout.write('--------------len(loss): ' + str(len(loss)) + '\n')
-            # sys.stdout.flush()
+            
             L = numpy.mean(loss)
             P = numpy.mean(prec) if len(prec) > 0 else -1
         
@@ -286,7 +286,6 @@ class ModelTrainer(object):
         ## Extract features for every image
         for idx, data in enumerate(test_loader):
             
-            # inp1 = data[0][0].cuda()
             inp1 = data[0][0]
             with torch.no_grad():
                 ref_feat = self.__model__(inp1).detach().cpu()
@@ -331,6 +330,7 @@ class ModelTrainer(object):
                 ref_feat = feats[data[1]].cuda() # 512
                 com_feat = feats[data[2]].cuda() # 512
                 
+                # normaliztion after model output if loss is CS, MSE_CS
                 if self.__model__.module.__L__.test_normalize:
                     ref_feat = torch.nn.functional.normalize(ref_feat, p=2, dim=0)
                     com_feat = torch.nn.functional.normalize(com_feat, p=2, dim=0)
@@ -338,7 +338,7 @@ class ModelTrainer(object):
                 # L2 distance
                 dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
                 
-                # cos distance
+                # # CS distance
                 # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
 
                 score = -1 * numpy.mean(dist)
@@ -436,9 +436,8 @@ class ModelTrainer(object):
                 data[1] = data[1][:-3]+'npy'
                 data[2] = data[2][:-3]+'npy'
                 
-                ref_feat = feats[data[1]].cuda() # 512
-                com_feat = feats[data[2]].cuda() # 512
-                # breakpoint()
+                ref_feat = feats[data[1]].cuda()
+                com_feat = feats[data[2]].cuda()
                 
                 # # default
                 # ref_feat = F.normalize(ref_feat, p=2, dim=1)
@@ -451,9 +450,12 @@ class ModelTrainer(object):
                 com_feat = torch.mean(com_feat, dim=0)
                 ref_feat = F.normalize(ref_feat, p=2, dim=0)
                 com_feat = F.normalize(com_feat, p=2, dim=0)
+
                 
-                
+                # L2 distance
                 dist = torch.dist(ref_feat, com_feat).detach().cpu().item()
+                
+                # # CS distance
                 # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().item()
                 score = -1 * dist
 

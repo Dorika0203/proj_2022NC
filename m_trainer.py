@@ -56,9 +56,14 @@ parser.add_argument('--save_path',      type=str,   default="exp_emb/temp", help
 parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list, 1 emb file per line')
 parser.add_argument('--valid_list',     type=str,   default="data/valid_list.txt",  help='Validation list, same as train list with different dataset')
 parser.add_argument('--test_list',      type=str,   default="data/test_list.txt",   help='Test list, 2 emb files per line')
+parser.add_argument('--test_list_libri',      type=str,   default="data/valid2_test_list.txt",   help='Libri test list, 2 emb files per line')
+
 parser.add_argument('--train_path',     type=str,   default="/home/doyeolkim/vox_emb/train/", help='Absolute path to the train set')
 parser.add_argument('--valid_path',     type=str,   default="/home/doyeolkim/vox_emb/test/", help='Absolute path to the valid set')
 parser.add_argument('--test_path',      type=str,   default="/home/doyeolkim/vox_emb/test/", help='Absolute path to the test set')
+parser.add_argument('--test_path_libri',      type=str,   default="/home/doyeolkim/libri_emb/valid2/", help='Absolute path to the libri test set')
+
+
 
 ## Model definition
 parser.add_argument('--model',          type=str,   default="m_LinearNet", help='Name of model definition')
@@ -166,20 +171,9 @@ def main_worker(gpu, ngpus_per_node, args):
 
     for ii in range(1,it):
         trainer.__scheduler__.step()
-
-
-
-    ## Evaluation code - must run on single GPU
-    if args.eval == True:
-        pytorch_total_params = sum(p.numel() for p in s.module.__S__.parameters())
-        print('Total parameters: ',pytorch_total_params)
-        print('Test list',args.test_list)
-        sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
-        if args.gpu == 0:
-            result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Test EER {:2.4f}".format(result[1]))
-        return
-    
+        
+        
+        
     
     ## Get Original EER
     if args.check == True:
@@ -191,8 +185,11 @@ def main_worker(gpu, ngpus_per_node, args):
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "[original EER] {:2.4f}, [processed EER] {:2.4f}".format(result[1], result2[1]))
         return
 
-    ## Core training script
-    
+
+
+
+
+    ## Core training script    
     for it in range(it,args.max_epoch+1):
         
         if args.distributed:
@@ -216,10 +213,16 @@ def main_worker(gpu, ngpus_per_node, args):
             mean_loss, mean_prec = trainer.validationLoss(**vars(args))
             sc, lab, _ = trainer.compareProcessedSingleEmbs(**vars(args))
             
+            args2 = argparse.Namespace(**vars(args))
+            args2.test_list = args2.test_list_libri
+            args2.test_path = args2.test_path_libri
+            sc2, lab2, _ = trainer.compareProcessedSingleEmbs(**vars(args2))
+            
             if args.gpu == 0:
                 result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-                print('\n',' Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, Vacc {:2.4f}'.format(it, mean_loss, result[1], mean_prec))
-                scorefile.write("--Val-- Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}\n".format(it, mean_loss, result[1]))
+                result2 = tuneThresholdfromScore(sc2, lab2, [1, 0.1])
+                print('\n',' Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, VEER_LIBRI {:2.4f}, Vacc {:2.4f}'.format(it, mean_loss, result[1], result2[1], mean_prec))
+                scorefile.write("--Val-- Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, VEER_LIBRI {:2.4f}\n".format(it, mean_loss, result[1], result2[1]))
                 trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
                 scorefile.flush()
                 

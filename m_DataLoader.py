@@ -60,21 +60,21 @@ class MyDataset(Dataset):
 
 
 
-        # # ONLY FOR DEBUGGING
-        # label_counter_dict = {}
-        # select_idx_list = []
-        # for idx, item in enumerate(self.data_label):
-        #     tmp = label_counter_dict.get(item, 0)
-        #     # 각 label 별 10개씩만 뽑기
-        #     if tmp > 10:
-        #         continue
-        #     tmp += 1
-        #     label_counter_dict[item] = tmp
-        #     select_idx_list.append(idx)
+        # ONLY FOR DEBUGGING
+        label_counter_dict = {}
+        select_idx_list = []
+        for idx, item in enumerate(self.data_label):
+            tmp = label_counter_dict.get(item, 0)
+            # 각 label 별 10개씩만 뽑기
+            if tmp > 10:
+                continue
+            tmp += 1
+            label_counter_dict[item] = tmp
+            select_idx_list.append(idx)
         
-        # self.sing_emb_list = [self.sing_emb_list[sel_idx] for sel_idx in select_idx_list]
-        # self.mult_emb_label = [self.mult_emb_label[sel_idx] for sel_idx in select_idx_list]
-        # self.data_label = [self.data_label[sel_idx] for sel_idx in select_idx_list]
+        self.sing_emb_list = [self.sing_emb_list[sel_idx] for sel_idx in select_idx_list]
+        self.mult_emb_label = [self.mult_emb_label[sel_idx] for sel_idx in select_idx_list]
+        self.data_label = [self.data_label[sel_idx] for sel_idx in select_idx_list]
             
     
     def __getitem__(self, index):
@@ -122,8 +122,6 @@ class MyDataset(Dataset):
         
         sing_feat = torch.cat(sing_feat, dim=0)
         mult_feat = torch.cat(mult_feat, dim=0)
-        # sing_feat = numpy.concatenate(sing_feat, axis=0)
-        # mult_feat = numpy.concatenate(mult_feat, axis=0)
         
         return sing_feat, (torch.FloatTensor(mult_feat), self.data_label[index])
 
@@ -145,7 +143,6 @@ class MyTestDataset(Dataset):
         embed = torch.mean(embed, dim=0)
         embed = torch.nn.functional.normalize(embed, p=2, dim=0)
         
-        # audio = loadWAV(os.path.join(self.test_path,self.test_list[index]), self.max_frames, evalmode=True, num_eval=self.num_eval)
         return embed, self.test_list[index]
 
     def __len__(self):
