@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import os
 
-SAVE_PATH = "exp_emb/MyLinearNetv2_Exp4-3"
+SAVE_PATH = "exp_emb/MyLinearNetv2_Exp4-2"
 
 file_path = os.path.join(SAVE_PATH, 'result/scores.txt')
 
@@ -21,10 +21,12 @@ for line in f.readlines():
     # train loss result
     if tokens[0].find('Val') == -1:
         if int(tokens[1]) > 40: break
+        if int(tokens[1]) < 3: continue
         tepoch.append(int(tokens[1]))
         tloss.append(float(tokens[3]))
     
     else:
+        if int(tokens[2]) < 3: continue
         vepoch.append(int(tokens[2]))
         vloss.append(float(tokens[4]))
         veer.append(float(tokens[6]))
