@@ -1,0 +1,22 @@
+# MyLinearNetv2 Exp4에서 batch size 변경 (epoch 내에서 너무 빠른 변화를 없애기 위함)
+# valid loss는 Voxceleb1 이용, valid EER은 libri speech의 dev-clean 이용
+
+model: MyLinearNetv2
+trainfunc: MSE
+
+batch_size: 1000
+max_epoch: 200
+test_interval: 1
+nDataLoaderThread: 5
+activation: ELU
+
+lr_decay: 0.99
+lr: 0.00001
+
+train_list: data/train_list.txt
+valid_list: data/valid_list.txt
+test_list: data/valid2_test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/libri_emb/valid2/

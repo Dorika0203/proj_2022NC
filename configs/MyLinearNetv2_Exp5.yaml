@@ -1,0 +1,28 @@
+# MyLinearNetv2 Exp4-2에서 다 발화 임베딩 타입 C로 변경 (avg-avg-norm)
+# 최종 결과과 정규화된 벡터이므로, MSE 없이 Cosine Similarity 이용
+
+model: MyLinearNetv2
+trainfunc: CS
+
+batch_size: 1000
+max_epoch: 40
+test_interval: 1
+nDataLoaderThread: 5
+activation: ELU
+
+lr_decay: 0.99
+lr: 0.00001
+
+initial_model: exp_emb/MyLinearNetv2_Exp5/model/model000000009.model
+
+train_list: data/train_list.txt
+valid_list: data/valid_list.txt
+test_list: data/valid2_test_list.txt
+# test_list: data/test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/libri_emb/valid2/
+# test_path: /home/doyeolkim/vox_emb/test/
+
+multiple_embedding_flag: C

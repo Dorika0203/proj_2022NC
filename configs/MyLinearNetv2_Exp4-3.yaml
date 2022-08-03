@@ -1,0 +1,23 @@
+# MyLinearNetv2 Exp4-2에서 MSE + cos similarity로 Loss 변경
+
+model: MyLinearNetv2
+trainfunc: MSE_CS
+
+batch_size: 1000
+max_epoch: 200
+test_interval: 1
+nDataLoaderThread: 5
+activation: ELU
+
+lr_decay: 0.99
+lr: 0.00001
+
+train_list: data/train_list.txt
+valid_list: data/valid_list.txt
+test_list: data/valid2_test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/libri_emb/valid2/
+
+multiple_embedding_flag: B

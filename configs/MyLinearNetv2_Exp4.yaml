@@ -1,0 +1,21 @@
+# training 샘플링을 RandomSampler로 변경
+
+model: MyLinearNetv2
+trainfunc: MSE
+
+batch_size: 200
+max_epoch: 20
+test_interval: 1
+nDataLoaderThread: 5
+activation: ELU
+
+lr_decay: 0.98
+lr: 0.00001
+
+train_list: data/train_list.txt
+valid_list: data/valid_list.txt
+test_list: data/test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/vox_emb/test/

@@ -1,0 +1,23 @@
+model: MyLinearNetv2
+trainfunc: MSE
+
+save_path: exp_emb/MyLinearNetv2_MSE_B100_E100
+
+batch_size: 100
+max_epoch: 100
+test_interval: 5
+nDataLoaderThread: 5
+
+lr_decay: 1.0
+lr: 0.001
+
+train_list: data/train_list.txt
+valid_list: data/valid_list.txt
+test_list: data/test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/vox_emb/test/
+
+# scale: 30
+# margin: 0.3

@@ -124,3 +124,4 @@ venv.bak/
 
 # MINE
 .vscode/
+!/configs/*

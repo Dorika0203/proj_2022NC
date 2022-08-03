@@ -1,0 +1,17 @@
+model: ResNetSE34V2
+log_input: True
+encoder_type: ASP
+trainfunc: softmaxproto
+save_path: exps/debugging
+nClasses: 5994
+batch_size: 200
+nPerSpeaker: 2
+scale: 30
+margin: 0.3
+nDataLoaderThread: 0
+
+train_path: /home/doyeolkim/vox2/dev/aac
+train_list: data/train_list.txt
+
+test_path: /home/doyeolkim/vox1/test_wav
+test_list: data/test_list.txt

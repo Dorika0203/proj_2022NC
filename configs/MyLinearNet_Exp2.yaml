@@ -1,0 +1,19 @@
+model: MyLinearNet
+trainfunc: MSE_SoftmaxProto
+
+batch_size: 200
+max_epoch: 200
+test_interval: 10
+nDataLoaderThread: 5
+
+lr_decay: 0.95
+lr: 0.0001
+nPerSpeaker: 2
+
+train_list: data/train_list.txt
+valid_list: data/valid_list.txt
+test_list: data/test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/vox_emb/test/
