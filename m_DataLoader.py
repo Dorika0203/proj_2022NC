@@ -17,8 +17,10 @@ def round_down(num, divisor):
 # 끝
 class MyDataset(Dataset):
     
-    def __init__(self, data_list, data_path, nPerSpeaker, **kwargs):
-
+    def __init__(self, data_list, data_path, nPerSpeaker, multiple_embedding_flag, **kwargs):
+        
+        assert multiple_embedding_flag == 'B' or multiple_embedding_flag == 'C'
+        
         self.sing_emb_list = data_list
         self.nPerSpeaker = nPerSpeaker
         
@@ -31,8 +33,12 @@ class MyDataset(Dataset):
         dictkeys.sort()
         key2label = { key : ii for ii, key in enumerate(dictkeys) }
         spk_dict = {}
-        for spk in dictkeys:
-            spk_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
+        if multiple_embedding_flag == 'B':
+            for spk in dictkeys:
+                spk_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
+        else:
+            for spk in dictkeys:
+                spk_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
 
 
 

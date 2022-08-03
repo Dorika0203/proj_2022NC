@@ -13,9 +13,10 @@ import csv
 
 
 DB_PATH = "/SGV/speechdb/ENG/LibriSpeech/LibriSpeech_wav/"
-EMBED_DIR = '/home/doyeolkim/libri_emb/base/'
+# EMBED_DIR = '/home/doyeolkim/libri_emb/base/'
 # EMBED_DIR = '/home/doyeolkim/libri_emb/trimmed/'
 # EMBED_DIR = '/home/doyeolkim/libri_emb/uneval/'
+EMBED_DIR = '/home/doyeolkim/libri_emb/dev-clean/'
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Default parser args
@@ -154,7 +155,8 @@ def main_worker(gpu, ngpus_per_node, args):
     
     if not os.path.exists(EMBED_DIR):
         os.mkdir(EMBED_DIR)
-    spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
+    # spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100', 'train-clean-360', 'dev-clean'])
+    spk_list, file_dict, dir_dict = get_file_dict_libri(['dev-clean'])
     # spk_list, file_dict, dir_dict = get_file_dict_libri(['train-clean-100'])
     args.gpu = gpu
     s = SpeakerNet(**vars(args))

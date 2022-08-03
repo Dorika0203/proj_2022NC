@@ -26,27 +26,26 @@ def generate_graph(save_path, **kwargs):
     veer = []
 
     for line in f.readlines():
+        line = line.replace(',', '')
         tokens = line.strip().split()
         
         # train loss result
         if tokens[0].find('Val') == -1:
-            tepoch.append(int(tokens[1][:-1]))
-            tloss.append(float(tokens[3][:-1]))
+            tepoch.append(int(tokens[1]))
+            tloss.append(float(tokens[3]))
         
         else:
-            vepoch.append(int(tokens[2][:-1]))
-            vloss.append(float(tokens[4][:-1]))
+            vepoch.append(int(tokens[2]))
+            vloss.append(float(tokens[4]))
             veer.append(float(tokens[6]))
 
-    plt.figure(figsize=(8, 8))
-
-    # all_loss = tloss.extend(vloss)
-    # plt.ylim((min(all_loss), max(all_loss)))
-    plt.plot(tepoch, tloss, 'b-')
-    plt.plot(vepoch, vloss, 'r-')
+    fig, ax1 = plt.subplots(figsize=(8,8))
+    ax2 = ax1.twinx()
+    ax1.plot(tepoch, tloss, **{'color': 'blue'}, label='train loss')
+    ax1.plot(vepoch, vloss, **{'color': 'red'}, label='valid loss')
+    ax2.plot(vepoch, veer, **{'color': 'orange'}, label='valid EER')
+    fig.legend()
     plt.savefig(os.path.join(save_path, 'result/fig.png'))
-    plt.clf()
-    print("Image saved.")
     f.close()
 
 
@@ -331,9 +330,16 @@ class ModelTrainer(object):
                 
                 ref_feat = feats[data[1]].cuda() # 512
                 com_feat = feats[data[2]].cuda() # 512
+                
+                if self.__model__.module.__L__.test_normalize:
+                    ref_feat = torch.nn.functional.normalize(ref_feat, p=2, dim=0)
+                    com_feat = torch.nn.functional.normalize(com_feat, p=2, dim=0)
 
                 # L2 distance
                 dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
+                
+                # cos distance
+                # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
 
                 score = -1 * numpy.mean(dist)
 
@@ -389,7 +395,6 @@ class ModelTrainer(object):
 
         ## Extract features for every image
         for idx, data in enumerate(test_loader):
-            
             ref_feat = data[0][0].cuda()
             feats[data[1][0]] = ref_feat
             telapsed = time.time() - tstart
@@ -433,21 +438,24 @@ class ModelTrainer(object):
                 
                 ref_feat = feats[data[1]].cuda() # 512
                 com_feat = feats[data[2]].cuda() # 512
+                # breakpoint()
+                
+                # # default
+                # ref_feat = F.normalize(ref_feat, p=2, dim=1)
+                # com_feat = F.normalize(com_feat, p=2, dim=1)
+                # dist = torch.cdist(ref_feat, com_feat).detach().cpu().numpy()
+                # score = -1 * numpy.mean(dist)
+                
+                # MySingleEmbed
+                ref_feat = torch.mean(ref_feat, dim=0)
+                com_feat = torch.mean(com_feat, dim=0)
+                ref_feat = F.normalize(ref_feat, p=2, dim=0)
+                com_feat = F.normalize(com_feat, p=2, dim=0)
                 
                 
-                # default
-                ref_feat = F.normalize(ref_feat, p=2, dim=1)
-                com_feat = F.normalize(com_feat, p=2, dim=1)
-                dist = torch.cdist(ref_feat, com_feat).detach().cpu().numpy()
-                score = -1 * numpy.mean(dist)
-                
-                # # MySingleEmbed
-                # ref_feat = torch.mean(ref_feat, dim=0)
-                # com_feat = torch.mean(com_feat, dim=0)
-                # ref_feat = F.normalize(ref_feat, p=2, dim=0)
-                # com_feat = F.normalize(com_feat, p=2, dim=0)
-                # dist = torch.dist(ref_feat, com_feat).detach().cpu().item()
-                # score = -1 * dist
+                dist = torch.dist(ref_feat, com_feat).detach().cpu().item()
+                # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().item()
+                score = -1 * dist
 
                 all_scores.append(score)
                 all_labels.append(int(data[0]))

@@ -6,8 +6,13 @@ import torch
 class LossFunction(nn.Module):
     def __init__(self, trainfunc, **kwargs):
         super(LossFunction, self).__init__()
-
+        
+        self.test_normalize = False
         self.trainfunc = trainfunc
+        
+        if trainfunc == 'CS' or trainfunc == 'MSE_CS':
+            self.test_normalize = True
+        
         self.mse = nn.MSELoss()
         self.mae = nn.L1Loss()
         self.cs = nn.CosineSimilarity(dim=0)
@@ -30,10 +35,10 @@ class LossFunction(nn.Module):
             loss = self.mae(x, mult_emb)
             
         elif self.trainfunc == 'CS':
-            loss = self.cs(x, mult_emb)
+            loss = 1 - self.cs(x, mult_emb).mean()
             
         elif self.trainfunc == 'MSE_CS':
-            loss = self.cs(x, mult_emb) + self.mse(x, mult_emb)
+            loss = 1 - self.cs(x, mult_emb).mean() + self.mse(x, mult_emb)
             
         elif self.trainfunc == 'MSE_Softmax':
             loss, prec = self.softmax(x, spk_label)

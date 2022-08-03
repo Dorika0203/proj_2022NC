@@ -19,11 +19,16 @@ DB_PATH 디렉토리 내의 모든 wav 파일들에 대해
 임베딩 벡터 생성은 Clova ResNetSE34V2를 이용.
 '''
 
-DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb1/test_wav/"
-EMBED_DIR = '/home/doyeolkim/vox_emb/test/'
+# DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb1/test_wav/"
+# EMBED_DIR = '/home/doyeolkim/vox_emb/test/'
 
 # DB_PATH = "/SGV/speechdb/OpenDevSet/VoxCeleb2/dev/aac/"
 # EMBED_DIR = '/home/doyeolkim/vox_emb/train/'
+
+# DB_PATH = "/home/doyeolkim/libri/train-clean-100/"
+# DB_PATH = "/home/doyeolkim/libri/train-clean-360/"
+DB_PATH = "/home/doyeolkim/libri/dev-clean/"
+EMBED_DIR = '/home/doyeolkim/libri_emb/valid2/'
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Default parser args
@@ -123,7 +128,7 @@ def get_wav_list(target_root):
     return ret_list
 
 def ignore_files(dir, files):
-    return [f for f in files if os.path.isfile(os.path.join(dir, f))]
+    return [f for f in files if os.path.isfile(os.path.join(dir, f)) or os.path.islink(os.path.join(dir, f))]
 
 class MyDatasetLoader(Dataset):
     def __init__(self, test_list, test_path, eval_frames, num_eval, **kwargs):
@@ -148,7 +153,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print('..... Tree removal Done')
     
     # directory structure copy
-    shutil.copytree(DB_PATH,EMBED_DIR,ignore=ignore_files)
+    shutil.copytree(DB_PATH, EMBED_DIR, ignore=ignore_files, dirs_exist_ok=True)
     print('..... Tree Copy Done')
     
     wav_list = get_wav_list(DB_PATH)

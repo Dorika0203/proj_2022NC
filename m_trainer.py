@@ -28,6 +28,7 @@ parser.add_argument('--batch_size',     type=int,   default=1000,    help='Batch
 parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number of loader threads')
 parser.add_argument('--seed',           type=int,   default=10,     help='Seed for the random number generator')
 parser.add_argument('--max_seg_per_spk', type=int,  default=500,    help='Maximum number of utterances per speaker per epoch')
+parser.add_argument('--multiple_embedding_flag', type=str,  default='B',    help='normalization and averaging order of multiple embedder. B: avg-norm-avg, C: avg-avg-norm')
 
 ## Training details``
 parser.add_argument('--test_interval',  type=int,   default=5,     help='Test and save every [test_interval] epochs')
@@ -182,10 +183,12 @@ def main_worker(gpu, ngpus_per_node, args):
     
     ## Get Original EER
     if args.check == True:
-        sc, lab, _ = trainer.get_original_result(**vars(args))
+        sc, lab, tr = trainer.get_original_result(**vars(args))
+        sc2, lab2, tr2 = trainer.compareProcessedSingleEmbs(**vars(args))
         if args.gpu == 0:
             result = tuneThresholdfromScore(sc, lab, [1, 0.1])
-            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Test EER {:2.4f}".format(result[1]))
+            result2 = tuneThresholdfromScore(sc2, lab2, [1, 0.1])
+            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "[original EER] {:2.4f}, [processed EER] {:2.4f}".format(result[1], result2[1]))
         return
 
     ## Core training script

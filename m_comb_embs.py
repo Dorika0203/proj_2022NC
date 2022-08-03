@@ -15,8 +15,9 @@ import shutil
 화자 단위의 다 발화 임베딩 벡터 하나로 정리한다.
 '''
 
-EMBED_DIR = "/home/doyeolkim/vox_emb/test/"
+# EMBED_DIR = "/home/doyeolkim/vox_emb/test/"
 # EMBED_DIR = "/home/doyeolkim/vox_emb/train/"
+EMBED_DIR = "/home/doyeolkim/libri_emb/valid2/"
 
 
 def generate_total_npy(target_path):
@@ -32,17 +33,20 @@ def generate_total_npy(target_path):
         for filename in filenames:
             if str.endswith(filename, '.npy'):
                 emb = np.load(root + '/' + filename)
-                
-                assert emb.shape == (10,512)
-                
+                assert emb.shape == (10,512)                
                 emb = np.mean(emb, axis=0)
-                # emb = emb / np.linalg.norm(emb)
-                emb = np.array(torch.nn.functional.normalize(torch.tensor(emb), p=2, dim=0))
+                
+                # type B -> 발화 단위 평균 후 정규화
+                # emb = np.array(torch.nn.functional.normalize(torch.tensor(emb), p=2, dim=0))
                 
                 np_list.append(emb)
     
     embs = np.array(np_list)
-    return np.mean(embs, axis=0)
+    ret = np.mean(embs, axis=0)
+    
+    # type C -> 화자 단위 평균 후 정규화
+    ret = np.array(torch.nn.functional.normalize(torch.FloatTensor(emb), p=2, dim=0))
+    return ret
 
 spk_list = []
 for i in os.listdir(EMBED_DIR):
@@ -51,7 +55,8 @@ for i in os.listdir(EMBED_DIR):
 
 for i, spk in enumerate(spk_list):
     mul_emb = generate_total_npy(EMBED_DIR+spk)
-    np.save(EMBED_DIR+'{}.npy'.format(spk), mul_emb)
+    # np.save(EMBED_DIR+'{}.npy'.format(spk), mul_emb)
+    np.save(EMBED_DIR+'{}_type2.npy'.format(spk), mul_emb)
     print('\rprocessing ({}/{})'.format(i+1, len(spk_list)), end='')
 
 print()
