@@ -29,6 +29,7 @@ parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number
 parser.add_argument('--seed',           type=int,   default=10,     help='Seed for the random number generator')
 parser.add_argument('--max_seg_per_spk', type=int,  default=500,    help='Maximum number of utterances per speaker per epoch')
 parser.add_argument('--multiple_embedding_flag', type=str,  default='B',    help='normalization and averaging order of multiple embedder. B: avg-norm-avg, C: avg-avg-norm')
+parser.add_argument('--triplet',        dest='triplet', action='store_true', help='data loading in triplet, when using triplet loss.')
 
 ## Training details``
 parser.add_argument('--test_interval',  type=int,   default=5,     help='Test and save every [test_interval] epochs')

@@ -2,11 +2,20 @@ import os
 import numpy
 import torch
 import warnings
+import random
 import torch.distributed as dist
-
 from torch.utils.data import Dataset
-
 warnings.simplefilter("ignore")
+
+
+
+
+
+
+
+
+
+
 
 def worker_init_fn(worker_id):
     numpy.random.seed(numpy.random.get_state()[1][0] + worker_id)
@@ -14,10 +23,18 @@ def worker_init_fn(worker_id):
 def round_down(num, divisor):
     return num - (num%divisor)
 
-# 끝
+
+
+
+
+
+
+
+
+
 class MyDataset(Dataset):
     
-    def __init__(self, data_list, data_path, nPerSpeaker, multiple_embedding_flag, **kwargs):
+    def __init__(self, data_list, data_path, nPerSpeaker, multiple_embedding_flag, triplet, **kwargs):
         
         assert multiple_embedding_flag == 'B' or multiple_embedding_flag == 'C'
         
@@ -32,50 +49,55 @@ class MyDataset(Dataset):
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
         key2label = { key : ii for ii, key in enumerate(dictkeys) }
-        spk_dict = {}
+        mult_emb_dict = {}
         if multiple_embedding_flag == 'B':
             for spk in dictkeys:
-                spk_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
+                mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
         else:
             for spk in dictkeys:
-                spk_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
+                mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
 
 
 
         # Parse the training list into file names and ID indices
         self.sing_emb_list  = []
-        self.mult_emb_label = []
+        self.mult_emb_list = []
         self.data_label = []
         
         for lidx, line in enumerate(lines):
             data = line.strip().split()
 
-            mult_emb_label = spk_dict[data[0]]
+            mult_emb = mult_emb_dict[data[0]]
             data_label = key2label[data[0]]
+            
+            if triplet:
+                data_label = mult_emb_dict[data[2]]
+            
             filename = os.path.join(data_path,data[1][:-3]+'npy')
             
-            self.mult_emb_label.append(mult_emb_label)
+            self.mult_emb_list.append(mult_emb)
             self.sing_emb_list.append(filename)
             self.data_label.append(data_label)
 
 
 
-        # ONLY FOR DEBUGGING
-        label_counter_dict = {}
-        select_idx_list = []
-        for idx, item in enumerate(self.data_label):
-            tmp = label_counter_dict.get(item, 0)
-            # 각 label 별 10개씩만 뽑기
-            if tmp > 10:
-                continue
-            tmp += 1
-            label_counter_dict[item] = tmp
-            select_idx_list.append(idx)
+        # # ONLY FOR DEBUGGING
+        # label_counter_dict = {}
+        # select_idx_list = []
+        # for idx, item in enumerate(self.data_label):
+        #     tmp = label_counter_dict.get(item, 0)
+        #     # 각 label 별 10개씩만 뽑기
+        #     if tmp > 10:
+        #         continue
+        #     tmp += 1
+        #     label_counter_dict[item] = tmp
+        #     select_idx_list.append(idx)
         
-        self.sing_emb_list = [self.sing_emb_list[sel_idx] for sel_idx in select_idx_list]
-        self.mult_emb_label = [self.mult_emb_label[sel_idx] for sel_idx in select_idx_list]
-        self.data_label = [self.data_label[sel_idx] for sel_idx in select_idx_list]
-            
+        # self.sing_emb_list = [self.sing_emb_list[sel_idx] for sel_idx in select_idx_list]
+        # self.mult_emb_list = [self.mult_emb_list[sel_idx] for sel_idx in select_idx_list]
+        # self.data_label = [self.data_label[sel_idx] for sel_idx in select_idx_list]
+        
+        print("MyDataset initialized with length: {}".format(self.__len__()))        
     
     def __getitem__(self, index):
         if self.nPerSpeaker == 1:
@@ -94,7 +116,7 @@ class MyDataset(Dataset):
         sing_emb = torch.mean(sing_emb, dim=0)
         sing_emb = torch.nn.functional.normalize(sing_emb, p=2, dim=0)
         
-        return sing_emb, (self.mult_emb_label[index], self.data_label[index])
+        return sing_emb, (self.mult_emb_list[index], self.data_label[index])
     
     
     # 여러개씩 sampling 되는 경우 사용
@@ -106,7 +128,7 @@ class MyDataset(Dataset):
         for index in indices:
             
             sing_emb = numpy.load(self.sing_emb_list[index])
-            mult_emb = self.mult_emb_label[index]
+            mult_emb = self.mult_emb_list[index]
             
             # frame by 평균, 후 L2 Normalization
             sing_emb = torch.FloatTensor(sing_emb)
@@ -127,6 +149,15 @@ class MyDataset(Dataset):
 
     def __len__(self):
         return len(self.sing_emb_list)
+
+
+
+
+
+
+
+
+
 
 
 class MyTestDataset(Dataset):
@@ -166,6 +197,8 @@ class OriginalDataset(Dataset):
     def __len__(self):
         return len(self.test_list)
     
+
+
 
 
 

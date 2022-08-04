@@ -1,6 +1,6 @@
 import torch.nn as nn
 import loss.softmaxproto2 as softmaxproto2
-import loss.softmax2 as softmax
+import loss.softmax2 as softmax2
 import torch
 
 class LossFunction(nn.Module):
@@ -10,14 +10,33 @@ class LossFunction(nn.Module):
         self.test_normalize = False
         self.trainfunc = trainfunc
         
-        if trainfunc == 'CS' or trainfunc == 'MSE_CS':
+        if self.trainfunc == 'MSE':
+            self.mse = nn.MSELoss()
+        elif self.trainfunc == 'MAE':
+            self.mae = nn.L1Loss()
+        elif self.trainfunc == 'CS':
             self.test_normalize = True
-        
-        self.mse = nn.MSELoss()
-        self.mae = nn.L1Loss()
-        self.cs = nn.CosineSimilarity(dim=0)
-        # self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
-        self.softmax = softmax.LossFunction(**kwargs)
+            self.cs = nn.CosineSimilarity(dim=0)
+        elif self.trainfunc == 'MSE_CS':
+            self.test_normalize = True
+            self.mse = nn.MSELoss()
+            self.cs = nn.CosineSimilarity(dim=0)
+        elif self.trainfunc == 'MSE_Softmax':
+            self.mse = nn.MSELoss()
+            self.softmax = softmax2.LossFunction(**kwargs)
+        elif self.trainfunc == 'Softmax':
+            self.softmax = softmax2.LossFunction(**kwargs)
+        # elif self.trainfunc == 'MSE_SoftmaxProto':
+        #     self.mse = nn.MSELoss()
+        #     self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
+        # elif self.trainfunc == 'SoftmaxProto':
+        #     self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
+        elif self.trainfunc == 'MyTriplet_CS':
+            self.test_normalize = True
+            self.cs = nn.CosineSimilarity(dim=0)
+            self.cs2 = nn.CosineSimilarity(dim=0)
+        else:
+            raise ValueError('No Loss function - {}'.format(self.trainfunc))
 
     def forward(self, x, y):
         
@@ -30,31 +49,26 @@ class LossFunction(nn.Module):
         
         if self.trainfunc == 'MSE':
             loss = self.mse(x, mult_emb)
-            
         elif self.trainfunc == 'MAE':
             loss = self.mae(x, mult_emb)
-            
         elif self.trainfunc == 'CS':
             loss = 1 - self.cs(x, mult_emb).mean()
-            
         elif self.trainfunc == 'MSE_CS':
             loss = 1 - self.cs(x, mult_emb).mean() + self.mse(x, mult_emb)
-            
         elif self.trainfunc == 'MSE_Softmax':
             loss, prec = self.softmax(x, spk_label)
-            loss += self.mse(x, mult_emb)
-            
+            loss += self.mse(x, mult_emb)      
         elif self.trainfunc == 'Softmax':
             loss, prec = self.softmax(x, spk_label)
             
         # elif self.trainfunc == 'MSE_SoftmaxProto':
         #     loss, prec = self.softmaxproto(x, spk_label)
         #     loss += self.mse(x, mult_emb)
-            
         # elif self.trainfunc == 'SoftmaxProto':
         #     loss, prec = self.softmaxproto(x, spk_label)
-            
-        else:
-            raise ValueError('No Loss function - {}'.format(self.trainfunc))
+        
+        elif self.trainfunc == 'MyTriplet_CS':
+            # spk_label은 여기서 다른 화자의 다발화 임베딩이 됨
+            loss = 1 - self.cs(x, mult_emb).mean() + self.cs2(x, spk_label).mean()
         
         return loss, prec
