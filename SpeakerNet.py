@@ -178,7 +178,7 @@ class ModelTrainer(object):
 
             if idx % print_interval == 0 and rank == 0:
                 sys.stdout.write(
-                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx, test_loader.__len__(), idx / telapsed, ref_feat.size()[1])
+                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx+1, test_loader.__len__(), idx / telapsed, ref_feat.size()[1])
                 )
 
         all_scores = []
@@ -227,7 +227,7 @@ class ModelTrainer(object):
 
                 if idx % print_interval == 0:
                     telapsed = time.time() - tstart
-                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(idx, len(lines), idx / telapsed))
+                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(idx+1, len(lines), idx / telapsed))
                     sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)

@@ -217,7 +217,7 @@ class ModelTrainer(object):
             if prec1 is not None:
                 prec.append(prec1.detach().cpu().item())
             if idx % print_interval == 0 and rank == 0:
-                sys.stdout.write("\r[Val] Reading {:d} of {:d} ".format(idx, test_loader.__len__()))
+                sys.stdout.write("\r[Val] Reading {:d} of {:d} ".format(idx+1, test_loader.__len__()))
                 sys.stdout.flush()
         
         if distributed:
@@ -293,7 +293,7 @@ class ModelTrainer(object):
             telapsed = time.time() - tstart
 
             if idx % print_interval == 0 and rank == 0:
-                sys.stdout.write("\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx, test_loader.__len__(), idx / telapsed, ref_feat.size()[1]))
+                sys.stdout.write("\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx+1, test_loader.__len__(), idx / telapsed, ref_feat.size()[1]))
 
         all_scores = []
         all_labels = []
@@ -349,7 +349,7 @@ class ModelTrainer(object):
 
                 if idx % print_interval == 0:
                     telapsed = time.time() - tstart
-                    sys.stdout.write("\rComputing {:d}/{:d}".format(idx, len(lines)))
+                    sys.stdout.write("\rComputing {:d}/{:d}".format(idx+1, len(lines)))
                     # sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)
@@ -401,7 +401,7 @@ class ModelTrainer(object):
 
             if idx % print_interval == 0 and rank == 0:
                 sys.stdout.write(
-                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx, test_loader.__len__(), idx / telapsed, ref_feat.size()[1])
+                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx+1, test_loader.__len__(), idx / telapsed, ref_feat.size()[1])
                 )
 
         all_scores = []
@@ -465,7 +465,7 @@ class ModelTrainer(object):
 
                 if idx % print_interval == 0:
                     telapsed = time.time() - tstart
-                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(idx, len(lines), idx / telapsed))
+                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(idx+1, len(lines), idx / telapsed))
                     sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)

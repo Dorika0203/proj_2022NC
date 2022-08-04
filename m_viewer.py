@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import os
 
-SAVE_PATH = "exp_emb/MyLinearNetv2_Exp5-2"
+SAVE_PATH = "exp_emb/MyLinearNet_Exp3-2"
 
 file_path = os.path.join(SAVE_PATH, 'result/scores.txt')
 
