@@ -335,11 +335,11 @@ class ModelTrainer(object):
                     ref_feat = torch.nn.functional.normalize(ref_feat, p=2, dim=0)
                     com_feat = torch.nn.functional.normalize(com_feat, p=2, dim=0)
 
-                # L2 distance
-                dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
+                # # L2 distance
+                # dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
                 
-                # # CS distance
-                # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
+                # CS distance
+                dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
 
                 score = -1 * numpy.mean(dist)
 

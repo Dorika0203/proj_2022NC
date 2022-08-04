@@ -1,0 +1,27 @@
+# 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
+
+model: MyLinearNetv2
+trainfunc: MyTriplet_CS
+
+batch_size: 1000
+max_epoch: 40
+test_interval: 1
+nDataLoaderThread: 5
+activation: ELU
+
+lr_decay: 0.99
+lr: 0.00001
+
+initial_model: 
+
+train_list: data/trainset_triplet_list.txt
+valid_list: data/testset_triplet_list.txt
+test_list: data/testset_test_list.txt
+test_list_libri: data/libriset_test_list.txt
+
+train_path: /home/doyeolkim/vox_emb/train/
+valid_path: /home/doyeolkim/vox_emb/test/ 
+test_path: /home/doyeolkim/vox_emb/test/
+test_path_libri: /home/doyeolkim/libri_emb/valid2/
+
+multiple_embedding_flag: C

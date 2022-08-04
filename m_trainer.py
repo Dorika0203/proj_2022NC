@@ -183,7 +183,19 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.gpu == 0:
             result = tuneThresholdfromScore(sc, lab, [1, 0.1])
             result2 = tuneThresholdfromScore(sc2, lab2, [1, 0.1])
-            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "[original EER] {:2.4f}, [processed EER] {:2.4f}".format(result[1], result2[1]))
+            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "[testset original EER] {:2.4f}, [testset processed EER] {:2.4f}".format(result[1], result2[1]))
+        
+        
+        args2 = argparse.Namespace(**vars(args))
+        args2.test_list = args2.test_list_libri
+        args2.test_path = args2.test_path_libri
+        sc, lab, tr = trainer.get_original_result(**vars(args2))
+        sc2, lab2, tr2 = trainer.compareProcessedSingleEmbs(**vars(args2))
+        if args.gpu == 0:
+            result = tuneThresholdfromScore(sc, lab, [1, 0.1])
+            result2 = tuneThresholdfromScore(sc2, lab2, [1, 0.1])
+            print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "[libriset original EER] {:2.4f}, [libriset processed EER] {:2.4f}".format(result[1], result2[1]))
+            
         return
 
 
