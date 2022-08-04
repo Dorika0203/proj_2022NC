@@ -12,8 +12,6 @@ activation: ELU
 lr_decay: 0.99
 lr: 0.00001
 
-initial_model: 
-
 train_list: data/trainset_triplet_list.txt
 valid_list: data/testset_triplet_list.txt
 test_list: data/testset_test_list.txt
