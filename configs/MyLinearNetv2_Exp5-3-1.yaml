@@ -1,4 +1,4 @@
-# 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
+# Exp 5-3에서 Cosine similarity dimension 오류 확인, 다시 실행
 
 model: MyLinearNetv2
 trainfunc: MyTriplet_CS

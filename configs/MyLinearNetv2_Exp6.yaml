@@ -1,19 +1,19 @@
 # 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
 
 model: MyLinearNetv2
-trainfunc: MyTriplet_CS
+trainfunc: DA
 
-batch_size: 1000
+batch_size: 12321
 max_epoch: 40
 test_interval: 1
-nDataLoaderThread: 5
+nDataLoaderThread: 0
 activation: ELU
 
 lr_decay: 0.99
 lr: 0.00001
 
-train_list: data/trainset_triplet_list.txt
-valid_list: data/testset_triplet_list.txt
+train_list: data/trainset_distribution_list.txt
+valid_list: data/testset_distribution_list.txt
 test_list: data/testset_test_list.txt
 test_list_libri: data/libriset_test_list.txt
 

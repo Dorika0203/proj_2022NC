@@ -1,8 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy, sys, random, pdb
-import time, itertools, importlib
+import numpy
+import sys
+import random
+import pdb
+import time
+import itertools
+import importlib
 import os
 
 from m_DataLoader import *
@@ -16,7 +21,7 @@ from matplotlib import pyplot as plt
 
 
 def generate_graph(save_path, **kwargs):
-    
+
     file_path = os.path.join(save_path, 'result/scores.txt')
     f = open(file_path, 'r')
     tloss = []
@@ -29,19 +34,19 @@ def generate_graph(save_path, **kwargs):
     for line in f.readlines():
         line = line.replace(',', '')
         tokens = line.strip().split()
-        
+
         # train loss result
         if tokens[0].find('Val') == -1:
             tepoch.append(int(tokens[1]))
             tloss.append(float(tokens[3]))
-        
+
         else:
             vepoch.append(int(tokens[2]))
             vloss.append(float(tokens[4]))
             veer.append(float(tokens[6]))
             veer_libri.append(float(tokens[8]))
 
-    fig, ax1 = plt.subplots(figsize=(8,8))
+    fig, ax1 = plt.subplots(figsize=(8, 8))
     ax2 = ax1.twinx()
     ax1.plot(tepoch, tloss, **{'color': 'blue'}, label='train loss')
     ax1.plot(vepoch, vloss, **{'color': 'red'}, label='valid loss')
@@ -50,8 +55,6 @@ def generate_graph(save_path, **kwargs):
     fig.legend()
     plt.savefig(os.path.join(save_path, 'result/fig.png'))
     f.close()
-
-
 
 
 class WrappedModel(nn.Module):
@@ -66,20 +69,19 @@ class WrappedModel(nn.Module):
         return self.module(x, label)
 
 
-
 class EmbedNet(nn.Module):
     # SpeakerNet: Model과 Loss Function을 같이 묶어서 처리함.
-    
+
     def __init__(self, model, nPerSpeaker, **kwargs):
         super(EmbedNet, self).__init__()
-        
+
         self.nPerSpeaker = nPerSpeaker
-        
+
         self.__S__ = MainModel(model, **kwargs)
         self.__L__ = loss.m_Losses.LossFunction(**kwargs)
 
     def forward(self, data, label=None):
-        
+
         data = data.reshape(-1, data.size()[-1]).cuda()
         outp = self.__S__.forward(data)
 
@@ -87,34 +89,30 @@ class EmbedNet(nn.Module):
             return outp
 
         else:
-            outp = outp.reshape(self.nPerSpeaker, -1, outp.size()[-1]).transpose(1, 0).squeeze(1)
+            outp = outp.reshape(self.nPerSpeaker, -1,
+                                outp.size()[-1]).transpose(1, 0).squeeze(1)
             nloss, prec = self.__L__.forward(outp, label)
             return nloss, prec
-        
-
-
 
 
 class ModelTrainer(object):
     def __init__(self, mymodel, optimizer, scheduler, gpu, **kwargs):
 
         self.__model__ = mymodel
-        
-        Optimizer = importlib.import_module("optimizer." + optimizer).__getattribute__("Optimizer")
+
+        Optimizer = importlib.import_module(
+            "optimizer." + optimizer).__getattribute__("Optimizer")
         self.__optimizer__ = Optimizer(self.__model__.parameters(), **kwargs)
-        
-        Scheduler = importlib.import_module("scheduler." + scheduler).__getattribute__("Scheduler")
-        self.__scheduler__, self.lr_step = Scheduler(self.__optimizer__, **kwargs)
-        
+
+        Scheduler = importlib.import_module(
+            "scheduler." + scheduler).__getattribute__("Scheduler")
+        self.__scheduler__, self.lr_step = Scheduler(
+            self.__optimizer__, **kwargs)
+
         self.scaler = GradScaler()
         self.gpu = gpu
 
         assert self.lr_step in ["epoch", "iteration"]
-
-
-
-
-
 
     # ## ===== ===== ===== ===== ===== ===== ===== =====
     # ## Train network
@@ -134,14 +132,14 @@ class ModelTrainer(object):
         # tstart = time.time()
 
         for sing_emb, tup_lab in loader:
-    
+
             # sing_emb = sing_emb.transpose(1,0) (얘가 sampler에서 생긴 문제였을수도 ?)
-            
+
             self.__model__.zero_grad()
             nloss, prec = self.__model__(sing_emb, tup_lab)
             nloss.backward()
             self.__optimizer__.step()
-                
+
             loss += nloss.detach().cpu().item()
             if prec is not None:
                 acc += prec.detach().cpu().item()
@@ -152,8 +150,10 @@ class ModelTrainer(object):
             # tstart = time.time()
 
             if verbose:
-                sys.stdout.write("\rProcessing {:d} of {:d}:".format(index, loader.__len__() * loader.batch_size))
-                sys.stdout.write(" TLoss {:f}, TAcc {:2.3f}%".format(loss / counter, acc / counter))
+                sys.stdout.write("\rProcessing {:d} of {:d}:".format(
+                    index, loader.__len__() * loader.batch_size))
+                sys.stdout.write(" TLoss {:f}, TAcc {:2.3f}%".format(
+                    loss / counter, acc / counter))
                 sys.stdout.flush()
 
             if self.lr_step == "iteration":
@@ -161,15 +161,8 @@ class ModelTrainer(object):
 
         if self.lr_step == "epoch":
             self.__scheduler__.step()
-        
+
         return (loss / counter)
-
-
-
-
-
-
-
 
     ## ===== ===== ===== ===== ===== ===== ===== =====
     ## Evaluate from list
@@ -184,32 +177,32 @@ class ModelTrainer(object):
 
         self.__model__.eval()
 
-        ## Define test data loader
-        test_dataset = MyDataset(valid_list, valid_path, nPerSpeaker=nPerSpeaker, **kwargs)
+        ## Initialise trainer and data loader
+        if kwargs['trainfunc'] == 'DA':
+            valid_dataset = MyDistributionDataset(
+                valid_list, valid_path, **kwargs)
+        else:
+            valid_dataset = MyDataset(
+                valid_list, valid_path, nPerSpeaker=nPerSpeaker, **kwargs)
+
         if nPerSpeaker != 1:
-            test_sampler = train_dataset_sampler(data_source=test_dataset, distributed=distributed, batch_size=1, **kwargs)
+            valid_sampler = train_dataset_sampler(
+                data_source=valid_dataset, distributed=distributed, batch_size=1, **kwargs)
         else:
             if distributed:
-                test_sampler = DistributedSampler(test_dataset)
+                valid_sampler = DistributedSampler(valid_dataset)
             else:
-                test_sampler = None
-            
-            
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=1,
-            shuffle=False,
-            num_workers=nDataLoaderThread,
-            drop_last=False,
-            sampler=test_sampler    
-        )
-        
+                valid_sampler = None
+
+        valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False,
+                                  num_workers=nDataLoaderThread, drop_last=False, sampler=valid_sampler)
+
         loss = []
         prec = []
         L = 0
         P = 0
-        
-        for idx, (data, label) in enumerate(test_loader):
+
+        for idx, (data, label) in enumerate(valid_loader):
             with torch.no_grad():
                 nloss, prec1 = self.__model__(data, label)
             # breakpoint()
@@ -217,15 +210,18 @@ class ModelTrainer(object):
             if prec1 is not None:
                 prec.append(prec1.detach().cpu().item())
             if idx % print_interval == 0 and rank == 0:
-                sys.stdout.write("\r[Val] Reading {:d} of {:d} ".format(idx+1, test_loader.__len__()))
+                sys.stdout.write("\r[Val] Reading {:d} of {:d} ".format(
+                    idx+1, valid_loader.__len__()))
                 sys.stdout.flush()
-        
+
         if distributed:
-            loss_all = [None for _ in range(0, torch.distributed.get_world_size())]
-            prec_all = [None for _ in range(0, torch.distributed.get_world_size())]
+            loss_all = [None for _ in range(
+                0, torch.distributed.get_world_size())]
+            prec_all = [None for _ in range(
+                0, torch.distributed.get_world_size())]
             torch.distributed.all_gather_object(loss_all, loss)
             torch.distributed.all_gather_object(prec_all, prec)
-        
+
         if rank == 0:
             if distributed:
                 loss = loss_all[0]
@@ -234,24 +230,17 @@ class ModelTrainer(object):
                     loss.extend(other_loss)
                 for other_prec in prec_all[1:]:
                     prec.extend(other_prec)
-            
+
             loss = numpy.array(loss)
             prec = numpy.array(prec)
-            
+
             L = numpy.mean(loss)
             P = numpy.mean(prec) if len(prec) > 0 else -1
-        
+
         return L, P
-    
-    
-    
-    
-    
-    
-    
-            
+
     def compareProcessedSingleEmbs(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=1, **kwargs):
-        
+
         if distributed:
             rank = torch.distributed.get_rank()
         else:
@@ -281,11 +270,12 @@ class ModelTrainer(object):
         else:
             sampler = None
 
-        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=nDataLoaderThread, drop_last=False, sampler=sampler)
+        valid_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+                                  num_workers=nDataLoaderThread, drop_last=False, sampler=sampler)
 
         ## Extract features for every image
-        for idx, data in enumerate(test_loader):
-            
+        for idx, data in enumerate(valid_loader):
+
             inp1 = data[0][0]
             with torch.no_grad():
                 ref_feat = self.__model__(inp1).detach().cpu()
@@ -293,7 +283,8 @@ class ModelTrainer(object):
             telapsed = time.time() - tstart
 
             if idx % print_interval == 0 and rank == 0:
-                sys.stdout.write("\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx+1, test_loader.__len__(), idx / telapsed, ref_feat.size()[1]))
+                sys.stdout.write("\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(
+                    idx+1, valid_loader.__len__(), idx / telapsed, ref_feat.size()[1]))
 
         all_scores = []
         all_labels = []
@@ -301,7 +292,8 @@ class ModelTrainer(object):
 
         if distributed:
             ## Gather features from all GPUs
-            feats_all = [None for _ in range(0, torch.distributed.get_world_size())]
+            feats_all = [None for _ in range(
+                0, torch.distributed.get_world_size())]
             torch.distributed.all_gather_object(feats_all, feats)
 
         if rank == 0:
@@ -323,23 +315,26 @@ class ModelTrainer(object):
                 ## Append random label if missing
                 if len(data) == 2:
                     data = [random.randint(0, 1)] + data
-                
+
                 data[1] = data[1][:-3]+'npy'
                 data[2] = data[2][:-3]+'npy'
-                
-                ref_feat = feats[data[1]].cuda() # 512
-                com_feat = feats[data[2]].cuda() # 512
-                
+
+                ref_feat = feats[data[1]].cuda()  # 512
+                com_feat = feats[data[2]].cuda()  # 512
+
                 # normaliztion after model output if loss is CS, MSE_CS
                 if self.__model__.module.__L__.test_normalize:
-                    ref_feat = torch.nn.functional.normalize(ref_feat, p=2, dim=0)
-                    com_feat = torch.nn.functional.normalize(com_feat, p=2, dim=0)
+                    ref_feat = torch.nn.functional.normalize(
+                        ref_feat, p=2, dim=0)
+                    com_feat = torch.nn.functional.normalize(
+                        com_feat, p=2, dim=0)
 
                 # # L2 distance
                 # dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
-                
+
                 # CS distance
-                dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
+                dist = 1 - torch.nn.functional.cosine_similarity(
+                    ref_feat, com_feat, dim=0).detach().cpu().numpy()
 
                 score = -1 * numpy.mean(dist)
 
@@ -349,21 +344,14 @@ class ModelTrainer(object):
 
                 if idx % print_interval == 0:
                     telapsed = time.time() - tstart
-                    sys.stdout.write("\rComputing {:d}/{:d}".format(idx+1, len(lines)))
+                    sys.stdout.write(
+                        "\rComputing {:d}/{:d}".format(idx+1, len(lines)))
                     # sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     def get_original_result(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=1, **kwargs):
-        
+
         if distributed:
             rank = torch.distributed.get_rank()
         else:
@@ -391,17 +379,19 @@ class ModelTrainer(object):
         else:
             sampler = None
 
-        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=nDataLoaderThread, drop_last=False, sampler=sampler)
+        valid_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+                                  num_workers=nDataLoaderThread, drop_last=False, sampler=sampler)
 
         ## Extract features for every image
-        for idx, data in enumerate(test_loader):
+        for idx, data in enumerate(valid_loader):
             ref_feat = data[0][0].cuda()
             feats[data[1][0]] = ref_feat
             telapsed = time.time() - tstart
 
             if idx % print_interval == 0 and rank == 0:
                 sys.stdout.write(
-                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(idx+1, test_loader.__len__(), idx / telapsed, ref_feat.size()[1])
+                    "\rReading {:d} of {:d}: {:.2f} Hz, embedding size {:d}".format(
+                        idx+1, valid_loader.__len__(), idx / telapsed, ref_feat.size()[1])
                 )
 
         all_scores = []
@@ -410,7 +400,8 @@ class ModelTrainer(object):
 
         if distributed:
             ## Gather features from all GPUs
-            feats_all = [None for _ in range(0, torch.distributed.get_world_size())]
+            feats_all = [None for _ in range(
+                0, torch.distributed.get_world_size())]
             torch.distributed.all_gather_object(feats_all, feats)
 
         if rank == 0:
@@ -432,29 +423,28 @@ class ModelTrainer(object):
                 ## Append random label if missing
                 if len(data) == 2:
                     data = [random.randint(0, 1)] + data
-                
+
                 data[1] = data[1][:-3]+'npy'
                 data[2] = data[2][:-3]+'npy'
-                
+
                 ref_feat = feats[data[1]].cuda()
                 com_feat = feats[data[2]].cuda()
-                
+
                 # # default
                 # ref_feat = F.normalize(ref_feat, p=2, dim=1)
                 # com_feat = F.normalize(com_feat, p=2, dim=1)
                 # dist = torch.cdist(ref_feat, com_feat).detach().cpu().numpy()
                 # score = -1 * numpy.mean(dist)
-                
+
                 # MySingleEmbed
                 ref_feat = torch.mean(ref_feat, dim=0)
                 com_feat = torch.mean(com_feat, dim=0)
                 ref_feat = F.normalize(ref_feat, p=2, dim=0)
                 com_feat = F.normalize(com_feat, p=2, dim=0)
 
-                
                 # L2 distance
                 dist = torch.dist(ref_feat, com_feat).detach().cpu().item()
-                
+
                 # # CS distance
                 # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().item()
                 score = -1 * dist
@@ -465,22 +455,11 @@ class ModelTrainer(object):
 
                 if idx % print_interval == 0:
                     telapsed = time.time() - tstart
-                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(idx+1, len(lines), idx / telapsed))
+                    sys.stdout.write("\rComputing {:d} of {:d}: {:.2f} Hz".format(
+                        idx+1, len(lines), idx / telapsed))
                     sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)
-
-
-
-
-
-
-
-
-
-
-
-
 
     ## ===== ===== ===== ===== ===== ===== ===== =====
     ## Save parameters
@@ -519,7 +498,8 @@ class ModelTrainer(object):
                     continue
 
             if self_state[name].size() != loaded_state[origname].size():
-                print("Wrong parameter length: {}, model: {}, loaded: {}".format(origname, self_state[name].size(), loaded_state[origname].size()))
+                print("Wrong parameter length: {}, model: {}, loaded: {}".format(
+                    origname, self_state[name].size(), loaded_state[origname].size()))
                 continue
 
             self_state[name].copy_(param)
