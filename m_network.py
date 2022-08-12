@@ -76,12 +76,16 @@ class EmbedNet(nn.Module):
         super(EmbedNet, self).__init__()
 
         self.nPerSpeaker = nPerSpeaker
-
         self.__S__ = MainModel(model, **kwargs)
         self.__L__ = loss.m_Losses.LossFunction(**kwargs)
 
     def forward(self, data, label=None):
-
+        
+        # Domain Adaptation 용
+        if type(data) is list:
+            cut_index = data[1]
+            data = data[0]
+            
         data = data.reshape(-1, data.size()[-1]).cuda()
         outp = self.__S__.forward(data)
 
@@ -89,9 +93,13 @@ class EmbedNet(nn.Module):
             return outp
 
         else:
-            outp = outp.reshape(self.nPerSpeaker, -1,
-                                outp.size()[-1]).transpose(1, 0).squeeze(1)
-            nloss, prec = self.__L__.forward(outp, label)
+            outp = outp.reshape(self.nPerSpeaker, -1, outp.size()[-1]).transpose(1, 0).squeeze(1)
+            
+            # Domain Adaptation 용
+            if self.__L__.trainfunc == 'DA':
+                nloss, prec = self.__L__.forward((outp, cut_index), label)
+            else:
+                nloss, prec = self.__L__.forward(outp, label)
             return nloss, prec
 
 
@@ -152,7 +160,7 @@ class ModelTrainer(object):
             if verbose:
                 sys.stdout.write("\rProcessing {:d} of {:d}:".format(
                     index, loader.__len__() * loader.batch_size))
-                sys.stdout.write(" TLoss {:f}, TAcc {:2.3f}%".format(
+                sys.stdout.write(" TLoss {:f}, TAcc {:2.6f}%".format(
                     loss / counter, acc / counter))
                 sys.stdout.flush()
 
@@ -205,7 +213,6 @@ class ModelTrainer(object):
         for idx, (data, label) in enumerate(valid_loader):
             with torch.no_grad():
                 nloss, prec1 = self.__model__(data, label)
-            # breakpoint()
             loss.append(nloss.detach().cpu().item())
             if prec1 is not None:
                 prec.append(prec1.detach().cpu().item())

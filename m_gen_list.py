@@ -156,6 +156,9 @@ for i in os.listdir(EMBED_DIR):
 딕셔너리 value가 list일 때
 최대 길이 list와 최소 길이 list인 (key, value) 튜플을 각각 반환
 다른 카테고리의 두개를 고를 때 최대한 많이 포함하려면 이렇게 계속 뽑아야 함
+
+=> 어떤 화자의 카테고리 별 발화 개수가 C1, C2, ..., Cn 이라고 하면
+max(C), min(C)에서 하나씩 뽑는 행동을 반복
 '''
 def select_minmax(target_dict):
     if len(target_dict) < 2:
@@ -163,8 +166,15 @@ def select_minmax(target_dict):
     sorted_list = sorted(target_dict.items(), key=lambda item: len(item[1]))
     return sorted_list[0], sorted_list[-1]
 
+
+
+
 f = open('data/'+FILENAME+'_distribution_list.txt', 'w')
 
+'''
+spk_cat_dict[spk] -> dictionary (cat_dict)
+cat_dict[cat] -> list (cat_1.npy, cat_2.npy, ...)
+'''
 spk_cat_dict = {}
 for idx, spk in enumerate(spk_list):
             

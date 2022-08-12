@@ -27,11 +27,6 @@ class LossFunction(nn.Module):
             self.softmax = softmax2.LossFunction(**kwargs)
         elif self.trainfunc == 'Softmax':
             self.softmax = softmax2.LossFunction(**kwargs)
-        # elif self.trainfunc == 'MSE_SoftmaxProto':
-        #     self.mse = nn.MSELoss()
-        #     self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
-        # elif self.trainfunc == 'SoftmaxProto':
-        #     self.softmaxproto = softmaxproto2.LossFunction(**kwargs)
         elif self.trainfunc == 'MyTriplet_CS':
             self.test_normalize = True
             self.cs = nn.CosineSimilarity()
@@ -44,50 +39,75 @@ class LossFunction(nn.Module):
 
     def forward(self, x, y):
 
-        mult_emb, spk_label = y
-        mult_emb = mult_emb.cuda()
-        spk_label = spk_label.cuda()
-        # breakpoint()
-
         loss = 0
         prec = None
 
         if self.trainfunc == 'MSE':
+            mult_emb, _ = y
+            mult_emb = mult_emb.cuda()
+            
             loss = self.mse(x, mult_emb)
+            
         elif self.trainfunc == 'MAE':
+            mult_emb, _ = y
+            mult_emb = mult_emb.cuda()
+            
             loss = self.mae(x, mult_emb)
+            
         elif self.trainfunc == 'CS':
+            mult_emb, _ = y
+            breakpoint()
+            mult_emb = mult_emb.cuda()
+            
             loss = 1 - self.cs(x, mult_emb).mean()
         elif self.trainfunc == 'MSE_CS':
+            mult_emb, _ = y
+            mult_emb = mult_emb.cuda()
+            
             loss = 1 - self.cs(x, mult_emb).mean() + self.mse(x, mult_emb)
+            
         elif self.trainfunc == 'MSE_Softmax':
+            mult_emb, spk_label = y
+            mult_emb = mult_emb.cuda()
+            spk_label = spk_label.cuda()
+            
             loss, prec = self.softmax(x, spk_label)
             loss += self.mse(x, mult_emb)
+            
         elif self.trainfunc == 'Softmax':
+            _ , spk_label = y
+            spk_label = spk_label.cuda()
+            
             loss, prec = self.softmax(x, spk_label)
 
-        # elif self.trainfunc == 'MSE_SoftmaxProto':
-        #     loss, prec = self.softmaxproto(x, spk_label)
-        #     loss += self.mse(x, mult_emb)
-        # elif self.trainfunc == 'SoftmaxProto':
-        #     loss, prec = self.softmaxproto(x, spk_label)
-
         elif self.trainfunc == 'MyTriplet_CS':
-            # spk_label은 여기서 다른 화자의 다발화 임베딩이 됨
-            loss = 1 - self.cs(x, mult_emb).mean() + \
-                self.cs2(x, spk_label).mean()
+            
+            mult_emb, diff_spk_mult_emb = y
+            mult_emb = mult_emb.cuda()
+            diff_spk_mult_emb = diff_spk_mult_emb.cuda()            
+            
+            loss = 1 - self.cs(x, mult_emb).mean() + self.cs2(x, diff_spk_mult_emb).mean()
+            
         elif self.trainfunc == 'DA':
-            # breakpoint()
-            dist = 1 - self.cs(x[0::2], x[1::2])
-            same_dist = dist[0::2].reshape(-1, 1)  # 100
-            diff_dist = dist[1::2].reshape(-1, 1)  # 100
+            
+            feat, cut_idx = x
+            mult_emb, _ = y
+            mult_emb = mult_emb.cuda()
+            
+            same_feat = feat[0:cut_idx]
+            diff_feat = feat[cut_idx:]
+            same_dist = 1-self.cs(same_feat[0::2], same_feat[1::2])
+            diff_dist = 1-self.cs(diff_feat[0::2], diff_feat[1::2])
+            same_dist = torch.unsqueeze(same_dist, dim=1)
+            diff_dist = torch.unsqueeze(diff_dist, dim=1)
             
             ss = torch.cdist(same_dist, same_dist).flatten()
             tt = torch.cdist(diff_dist, diff_dist).flatten()
             ts = torch.cdist(same_dist, diff_dist).flatten()
             
             loss = torch.exp(-(ss**2)/2).mean() + torch.exp(-(tt**2)/2).mean() - 2*torch.exp(-(ts**2)/2).mean()
-            
-            # breakpoint()
+            # USE Precision as MMD Loss observer (originally used for classification accuracy)
+            prec = loss.clone().detach()
+            loss += 1 - self.cs(feat, mult_emb[0]).mean()
 
         return loss, prec

@@ -1,7 +1,7 @@
-# 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
+# Exp5 한번 더 실험, 그리기 추가
 
 model: MyLinearNetv2
-trainfunc: MyTriplet_CS
+trainfunc: CS
 
 batch_size: 1000
 max_epoch: 40
@@ -12,8 +12,8 @@ activation: ELU
 lr_decay: 0.99
 lr: 0.00001
 
-train_list: data/trainset_triplet_list.txt
-valid_list: data/testset_triplet_list.txt
+train_list: data/trainset_normal_list.txt
+valid_list: data/testset_normal_list.txt
 test_list: data/testset_test_list.txt
 test_list_libri: data/libriset_test_list.txt
 

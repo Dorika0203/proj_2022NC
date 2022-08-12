@@ -48,13 +48,13 @@ class MyDataset(Dataset):
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
         key2label = { key : ii for ii, key in enumerate(dictkeys) }
-        mult_emb_dict = {}
+        self.mult_emb_dict = {}
         if multiple_embedding_flag == 'B':
             for spk in dictkeys:
-                mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
+                self.mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
         else:
             for spk in dictkeys:
-                mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
+                self.mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
 
 
 
@@ -66,11 +66,11 @@ class MyDataset(Dataset):
         for lidx, line in enumerate(lines):
             data = line.strip().split()
 
-            mult_emb = mult_emb_dict[data[0]]
+            mult_emb = self.mult_emb_dict[data[0]]
             data_label = key2label[data[0]]
             
             if triplet:
-                data_label = mult_emb_dict[data[2]]
+                data_label = self.mult_emb_dict[data[2]]
             
             filename = os.path.join(data_path,data[1][:-3]+'npy')
             
@@ -166,7 +166,7 @@ class MyDistributionDataset(Dataset):
     def __init__(self, data_list, data_path, multiple_embedding_flag, **kwargs):
         
         assert multiple_embedding_flag == 'B' or multiple_embedding_flag == 'C'
-                
+        
         # Read training files
         with open(data_list) as dataset_file:
             lines = dataset_file.readlines()
@@ -174,92 +174,101 @@ class MyDistributionDataset(Dataset):
         # 라벨 데이터 (다 발화 임베딩 벡터) 딕셔너리로 정리
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
-        mult_emb_dict = {}
-        if multiple_embedding_flag == 'B':
-            for spk in dictkeys:
-                mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
-        else:
-            for spk in dictkeys:
-                mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
-
-
-
-        # Parse the training list into file names and ID indices
-        self.same_cat_tup_list = []
-        self.diff_cat_tup_list = []
-        self.same_mult_emb_list = []
-        self.diff_mult_emb_list = []
+        
+        self.spk_list = dictkeys
+        self.mult_emb_dict = {}
+        
+        self.same_cat_tup_dict = {}
+        self.diff_cat_tup_dict = {}
+        
+        for spk in dictkeys:
+            
+            self.same_cat_tup_dict[spk] = []
+            self.diff_cat_tup_dict[spk] = []
+            
+            if multiple_embedding_flag == 'B':
+                self.mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'.npy'))
+            else:
+                self.mult_emb_dict[spk] = torch.FloatTensor(numpy.load(data_path+spk+'_type2.npy'))
+        
         
         for lidx, line in enumerate(lines):
             data = line.strip().split()
-
-            mult_emb = mult_emb_dict[data[0]]
             
             f1 = os.path.join(data_path,data[1][:-3]+'npy')
             f2 = os.path.join(data_path,data[2][:-3]+'npy')
             
             if data[3] == '1':
-                self.same_cat_tup_list.append((f1, f2))
-                self.same_mult_emb_list.append(mult_emb)
+                self.same_cat_tup_dict[data[0]].append((f1,f2))
             else:
-                self.diff_cat_tup_list.append((f1, f2))            
-                self.diff_mult_emb_list.append(mult_emb)
-        
-        # shuffle 필요함
+                self.diff_cat_tup_dict[data[0]].append((f1,f2))
         
         print("MyDataset2 initialized with length: {}".format(self.__len__() * 100))        
     
     def __getitem__(self, index):
         
-        sing_feat = []
-        mult_feat = []
+        # index: 화자
+        same_list = []
+        diff_list = []
         
-        for i in range(100):
-            sing_emb1 = numpy.load(self.same_cat_tup_list[index*100+i][0])
-            sing_emb2 = numpy.load(self.same_cat_tup_list[index*100+i][1])
-            sing_emb3 = numpy.load(self.diff_cat_tup_list[index*100+i][0])
-            sing_emb4 = numpy.load(self.diff_cat_tup_list[index*100+i][1])
-            mult_emb1 = self.same_mult_emb_list[index*100+i]
-            mult_emb2 = self.diff_mult_emb_list[index*100+i]
-            
-            # frame by 평균, 후 L2 Normalization
-            sing_emb1 = torch.FloatTensor(sing_emb1)
-            sing_emb1 = torch.mean(sing_emb1, dim=0)
-            sing_emb1 = torch.nn.functional.normalize(sing_emb1, p=2, dim=0)
-            sing_emb2 = torch.FloatTensor(sing_emb2)
-            sing_emb2 = torch.mean(sing_emb2, dim=0)
-            sing_emb2 = torch.nn.functional.normalize(sing_emb2, p=2, dim=0)
-            sing_emb3 = torch.FloatTensor(sing_emb3)
-            sing_emb3 = torch.mean(sing_emb3, dim=0)
-            sing_emb3 = torch.nn.functional.normalize(sing_emb3, p=2, dim=0)
-            sing_emb4 = torch.FloatTensor(sing_emb4)
-            sing_emb4 = torch.mean(sing_emb4, dim=0)
-            sing_emb4 = torch.nn.functional.normalize(sing_emb4, p=2, dim=0)
-            
-            sing_emb1 = torch.unsqueeze(sing_emb1, dim=0)
-            sing_emb2 = torch.unsqueeze(sing_emb2, dim=0)
-            sing_emb3 = torch.unsqueeze(sing_emb3, dim=0)
-            sing_emb4 = torch.unsqueeze(sing_emb4, dim=0)
-            mult_emb1 = torch.unsqueeze(mult_emb1, dim=0)
-            mult_emb2 = torch.unsqueeze(mult_emb2, dim=0)
-            
-            sing_feat.append(sing_emb1)
-            sing_feat.append(sing_emb2)
-            sing_feat.append(sing_emb3)
-            sing_feat.append(sing_emb4)
-            
-            mult_feat.append(mult_emb1)
-            mult_feat.append(mult_emb1)
-            mult_feat.append(mult_emb2)
-            mult_feat.append(mult_emb2)
-    
+        spk = self.spk_list[index]
+        same_cat_tup_list = self.same_cat_tup_dict[spk]
+        diff_cat_tup_list = self.diff_cat_tup_dict[spk]
+        mult_emb = self.mult_emb_dict[spk]
+        
+        
+        # 같은 카테고리
+        for tup in same_cat_tup_list:
+            emb1 = numpy.load(tup[0])
+            emb2 = numpy.load(tup[1])
+            # frame by 평균, 후 L2 Normalization ( (10, 512) -> (512,) )
+            emb1 = torch.FloatTensor(emb1)
+            emb1 = torch.mean(emb1, dim=0)
+            emb1 = torch.nn.functional.normalize(emb1, p=2, dim=0)
+            emb2 = torch.FloatTensor(emb2)
+            emb2 = torch.mean(emb2, dim=0)
+            emb2 = torch.nn.functional.normalize(emb2, p=2, dim=0)
+            # 앞에 1개 축 추가 ( (512,) -> (1,512) )
+            emb1 = torch.unsqueeze(emb1, dim=0)
+            emb2 = torch.unsqueeze(emb2, dim=0)
+            same_list.append(emb1)
+            same_list.append(emb2)
+        
+        # 다른 카테고리
+        for tup in diff_cat_tup_list:
+            emb1 = numpy.load(tup[0])
+            emb2 = numpy.load(tup[1])
+            # frame by 평균, 후 L2 Normalization ( (10, 512) -> (512,) )
+            emb1 = torch.FloatTensor(emb1)
+            emb1 = torch.mean(emb1, dim=0)
+            emb1 = torch.nn.functional.normalize(emb1, p=2, dim=0)
+            emb2 = torch.FloatTensor(emb2)
+            emb2 = torch.mean(emb2, dim=0)
+            emb2 = torch.nn.functional.normalize(emb2, p=2, dim=0)
+            # 앞에 1개 축 추가 ( (512,) -> (1,512) )
+            emb1 = torch.unsqueeze(emb1, dim=0)
+            emb2 = torch.unsqueeze(emb2, dim=0)
+            diff_list.append(emb1)
+            diff_list.append(emb2)
+        
+        sing_feat = list()
+        sing_feat.extend(same_list)
+        sing_feat.extend(diff_list)
+        
         sing_feat = torch.cat(sing_feat, dim=0)
-        mult_feat = torch.cat(mult_feat, dim=0)
         
-        return sing_feat, (mult_feat, -1)
+        mult_emb = torch.Tensor.repeat(mult_emb, (sing_feat.shape[0], 1))
+        
+        '''
+        same_list: [A-1, A-2, B-1, B-2, A-3, A-4, C-5, C-6, ..]         shape: (2 x N_same, 512)
+        diff_list: [A-1, B-1, A-2, C-1, B-2, C-2, ..],                  shape: (2 x N_diff, 512)
+        mult_emb: target speaker multiple embedding vector              shape: (512, )
+        '''
+        return (sing_feat, len(same_list)), (mult_emb, -1)
     
     def __len__(self):
-        return min(len(self.same_cat_tup_list), len(self.diff_cat_tup_list)) // 100
+        return len(self.spk_list)
+        # return min(len(self.same_cat_tup_list), len(self.diff_cat_tup_list)) // 100
 
 
 
