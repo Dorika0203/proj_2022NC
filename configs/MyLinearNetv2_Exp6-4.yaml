@@ -1,9 +1,10 @@
-# 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
+# Exp6-1에서 DA + CS 대신 DA + MSE 방식으로
+# Embedding flag는 B, distance metric은 L2 distance 이용
 
 model: MyLinearNetv2
-trainfunc: MyTriplet_CS
+trainfunc: DA_MSE
 
-batch_size: 1000
+batch_size: 12321
 max_epoch: 40
 test_interval: 1
 nDataLoaderThread: 5
@@ -12,8 +13,8 @@ activation: ELU
 lr_decay: 0.99
 lr: 0.00001
 
-train_list: data/trainset_triplet_list.txt
-valid_list: data/testset_triplet_list.txt
+train_list: data/trainset_distribution_list.txt
+valid_list: data/testset_distribution_list.txt
 test_list: data/testset_test_list.txt
 test_list_libri: data/libriset_test_list.txt
 
@@ -21,6 +22,8 @@ train_path: /home/doyeolkim/vox_emb/train/
 valid_path: /home/doyeolkim/vox_emb/test/ 
 test_path: /home/doyeolkim/vox_emb/test/
 test_path_libri: /home/doyeolkim/libri_emb/valid2/
+
+sigma: 1
 
 gen_list: data/trainset_normal_list.txt
 gen_path: /home/doyeolkim/vox_emb/train/
@@ -30,5 +33,4 @@ gen_target_dir: emb_train
 # gen_path: /home/doyeolkim/vox_emb/test/
 # gen_target_dir: emb_test
 
-
-multiple_embedding_flag: C
+multiple_embedding_flag: B

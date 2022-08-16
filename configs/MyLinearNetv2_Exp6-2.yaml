@@ -1,19 +1,20 @@
-# 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
+# Domain Adaptation 방식에서 분석용
+# train loss에서 MSE+MMD 대신 MMD만 이용.
+# train dataset embedding 생성 후 기존 embedding과 비교
 
 model: MyLinearNetv2
-trainfunc: MyTriplet_CS
+trainfunc: DA
 
-batch_size: 1000
-max_epoch: 40
+batch_size: 12321
+max_epoch: 10
 test_interval: 1
-nDataLoaderThread: 5
 activation: ELU
 
 lr_decay: 0.99
 lr: 0.00001
 
-train_list: data/trainset_triplet_list.txt
-valid_list: data/testset_triplet_list.txt
+train_list: data/trainset_distribution_list.txt
+valid_list: data/testset_distribution_list.txt
 test_list: data/testset_test_list.txt
 test_list_libri: data/libriset_test_list.txt
 
@@ -22,6 +23,8 @@ valid_path: /home/doyeolkim/vox_emb/test/
 test_path: /home/doyeolkim/vox_emb/test/
 test_path_libri: /home/doyeolkim/libri_emb/valid2/
 
+sigma: 0.1
+
 gen_list: data/trainset_normal_list.txt
 gen_path: /home/doyeolkim/vox_emb/train/
 gen_target_dir: emb_train
@@ -29,6 +32,7 @@ gen_target_dir: emb_train
 # gen_list: data/testset_normal_list.txt
 # gen_path: /home/doyeolkim/vox_emb/test/
 # gen_target_dir: emb_test
+# initial_model: exp_emb/MyLinearNetv2_Exp6-2/model/model000000001.model
 
 
 multiple_embedding_flag: C

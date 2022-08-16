@@ -19,44 +19,6 @@ import loss.m_Losses
 
 from matplotlib import pyplot as plt
 
-
-def generate_graph(save_path, **kwargs):
-
-    file_path = os.path.join(save_path, 'result/scores.txt')
-    f = open(file_path, 'r')
-    tloss = []
-    tepoch = []
-    vloss = []
-    vepoch = []
-    veer = []
-    veer_libri = []
-
-    for line in f.readlines():
-        line = line.replace(',', '')
-        tokens = line.strip().split()
-
-        # train loss result
-        if tokens[0].find('Val') == -1:
-            tepoch.append(int(tokens[1]))
-            tloss.append(float(tokens[3]))
-
-        else:
-            vepoch.append(int(tokens[2]))
-            vloss.append(float(tokens[4]))
-            veer.append(float(tokens[6]))
-            veer_libri.append(float(tokens[8]))
-
-    fig, ax1 = plt.subplots(figsize=(8, 8))
-    ax2 = ax1.twinx()
-    ax1.plot(tepoch, tloss, **{'color': 'blue'}, label='train loss')
-    ax1.plot(vepoch, vloss, **{'color': 'red'}, label='valid loss')
-    ax2.plot(vepoch, veer, **{'color': 'orange'}, label='valid EER')
-    ax2.plot(vepoch, veer_libri, **{'color': 'pink'}, label='valid EER')
-    fig.legend()
-    plt.savefig(os.path.join(save_path, 'result/fig.png'))
-    f.close()
-
-
 class WrappedModel(nn.Module):
 
     ## The purpose of this wrapper is to make the model structure consistent between single and multi-GPU
@@ -80,7 +42,6 @@ class EmbedNet(nn.Module):
         self.__L__ = loss.m_Losses.LossFunction(**kwargs)
 
     def forward(self, data, label=None):
-        
         # Domain Adaptation 용
         if type(data) is list:
             cut_index = data[1]
@@ -96,7 +57,7 @@ class EmbedNet(nn.Module):
             outp = outp.reshape(self.nPerSpeaker, -1, outp.size()[-1]).transpose(1, 0).squeeze(1)
             
             # Domain Adaptation 용
-            if self.__L__.trainfunc == 'DA':
+            if self.__L__.trainfunc[0:2] == 'DA':
                 nloss, prec = self.__L__.forward((outp, cut_index), label)
             else:
                 nloss, prec = self.__L__.forward(outp, label)
@@ -121,6 +82,10 @@ class ModelTrainer(object):
         self.gpu = gpu
 
         assert self.lr_step in ["epoch", "iteration"]
+
+
+
+
 
     # ## ===== ===== ===== ===== ===== ===== ===== =====
     # ## Train network
@@ -176,6 +141,11 @@ class ModelTrainer(object):
     ## Evaluate from list
     ## ===== ===== ===== ===== ===== ===== ===== =====
 
+
+
+
+
+
     def validationLoss(self, valid_list, valid_path, nDataLoaderThread, distributed, print_interval=1, batch_size=1, nPerSpeaker=1, **kwargs):
 
         if distributed:
@@ -186,7 +156,7 @@ class ModelTrainer(object):
         self.__model__.eval()
 
         ## Initialise trainer and data loader
-        if kwargs['trainfunc'] == 'DA':
+        if kwargs['trainfunc'][0:2] == 'DA':
             valid_dataset = MyDistributionDataset(
                 valid_list, valid_path, **kwargs)
         else:
@@ -246,6 +216,12 @@ class ModelTrainer(object):
 
         return L, P
 
+
+
+
+
+
+
     def compareProcessedSingleEmbs(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=1, **kwargs):
 
         if distributed:
@@ -282,7 +258,7 @@ class ModelTrainer(object):
 
         ## Extract features for every image
         for idx, data in enumerate(valid_loader):
-
+            
             inp1 = data[0][0]
             with torch.no_grad():
                 ref_feat = self.__model__(inp1).detach().cpu()
@@ -335,13 +311,14 @@ class ModelTrainer(object):
                         ref_feat, p=2, dim=0)
                     com_feat = torch.nn.functional.normalize(
                         com_feat, p=2, dim=0)
-
-                # # L2 distance
-                # dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
+                
+                # L2 distance
+                if kwargs['multiple_embedding_flag'] == 'B':
+                    dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
 
                 # CS distance
-                dist = 1 - torch.nn.functional.cosine_similarity(
-                    ref_feat, com_feat, dim=0).detach().cpu().numpy()
+                else:
+                    dist = 1 - torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
 
                 score = -1 * numpy.mean(dist)
 
@@ -356,6 +333,12 @@ class ModelTrainer(object):
                     # sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)
+
+
+
+
+
+
 
     def get_original_result(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=1, **kwargs):
 
@@ -437,23 +420,26 @@ class ModelTrainer(object):
                 ref_feat = feats[data[1]].cuda()
                 com_feat = feats[data[2]].cuda()
 
-                # # default
+                # # default - 기존 방식 (distance matrix) 이용 채점
                 # ref_feat = F.normalize(ref_feat, p=2, dim=1)
                 # com_feat = F.normalize(com_feat, p=2, dim=1)
                 # dist = torch.cdist(ref_feat, com_feat).detach().cpu().numpy()
                 # score = -1 * numpy.mean(dist)
 
-                # MySingleEmbed
+                # MySingleEmbed - 10개 평균, normalization 후 채점
                 ref_feat = torch.mean(ref_feat, dim=0)
                 com_feat = torch.mean(com_feat, dim=0)
                 ref_feat = F.normalize(ref_feat, p=2, dim=0)
                 com_feat = F.normalize(com_feat, p=2, dim=0)
 
                 # L2 distance
-                dist = torch.dist(ref_feat, com_feat).detach().cpu().item()
+                if kwargs['multiple_embedding_flag'] == 'B':
+                    dist = torch.dist(ref_feat, com_feat, p=2).detach().cpu().numpy()
 
-                # # CS distance
-                # dist = 1- torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().item()
+                # CS distance
+                else:
+                    dist = 1 - torch.nn.functional.cosine_similarity(ref_feat, com_feat, dim=0).detach().cpu().numpy()
+                
                 score = -1 * dist
 
                 all_scores.append(score)
@@ -467,6 +453,11 @@ class ModelTrainer(object):
                     sys.stdout.flush()
 
         return (all_scores, all_labels, all_trials)
+
+
+
+
+
 
     ## ===== ===== ===== ===== ===== ===== ===== =====
     ## Save parameters

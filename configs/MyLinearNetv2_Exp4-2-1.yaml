@@ -1,27 +1,26 @@
-# 5-2와 동일, distance만 다른 metric으로 (L2 distance -> cos sim)
+# MyLinearNetv2 Exp4에서 batch size 변경 (epoch 내에서 너무 빠른 변화를 없애기 위함)
+# valid loss는 Voxceleb1 이용, valid EER은 libri speech의 dev-clean 이용
 
 model: MyLinearNetv2
-trainfunc: DA
+trainfunc: MSE
 
-batch_size: 12321
+batch_size: 1000
 max_epoch: 40
 test_interval: 1
-nDataLoaderThread: 0
+nDataLoaderThread: 5
 activation: ELU
 
 lr_decay: 0.99
 lr: 0.00001
 
-train_list: data/trainset_distribution_list.txt
-valid_list: data/testset_distribution_list.txt
+train_list: data/trainset_normal_list.txt
+valid_list: data/testset_normal_list.txt
 test_list: data/testset_test_list.txt
 test_list_libri: data/libriset_test_list.txt
-gen_list: data/testset_normal_list.txt
 
 train_path: /home/doyeolkim/vox_emb/train/
 valid_path: /home/doyeolkim/vox_emb/test/ 
 test_path: /home/doyeolkim/vox_emb/test/
 test_path_libri: /home/doyeolkim/libri_emb/valid2/
-gen_path: /home/doyeolkim/vox_emb/test/
 
-multiple_embedding_flag: C
+multiple_embedding_flag: B

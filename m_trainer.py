@@ -23,15 +23,15 @@ warnings.simplefilter("ignore")
 ## ===== ===== ===== ===== ===== ===== ===== =====
 
 parser = argparse.ArgumentParser(description="SpeakerNet")
-parser.add_argument('--config',         type=str,
-                    default=None,   help='Config YAML file')
+parser.add_argument('--config', type=str, default=None,
+                    help='Config YAML file')
 
 ## Data loader
-parser.add_argument('--batch_size',     type=int,   default=1000,
+parser.add_argument('--batch_size', type=int, default=1000,
                     help='Batch size, number of speakers per batch')
 parser.add_argument('--nDataLoaderThread', type=int,
-                    default=5,     help='Number of loader threads')
-parser.add_argument('--seed',           type=int,   default=10,
+                    default=5, help='Number of loader threads')
+parser.add_argument('--seed', type=int,   default=10,
                     help='Seed for the random number generator')
 parser.add_argument('--max_seg_per_spk', type=int,  default=500,
                     help='Maximum number of utterances per speaker per epoch')
@@ -69,6 +69,8 @@ parser.add_argument('--nPerSpeaker',    type=int,   default=1,
                     help='Number of utterances per speaker per batch, only for metric learning based losses')
 parser.add_argument('--nClasses',       type=int,   default=5994,
                     help='Number of speakers in the softmax layer, only for softmax-based losses')
+parser.add_argument('--sigma', type=float, default=1,
+                    help='Gamma value of RBF kernel, for MMD Loss')
 
 ## Load and save
 parser.add_argument('--initial_model',  type=str,
@@ -85,6 +87,7 @@ parser.add_argument('--test_list',      type=str,
                     default="data/test_list.txt",   help='Test list, 2 emb files per line')
 parser.add_argument('--test_list_libri',      type=str,
                     default="data/valid2_test_list.txt",   help='Libri test list, 2 emb files per line')
+
 
 parser.add_argument('--train_path',     type=str,
                     default="/home/doyeolkim/vox_emb/train/", help='Absolute path to the train set')
@@ -109,12 +112,24 @@ parser.add_argument('--eval',           dest='eval',
                     action='store_true', help='Eval only')
 parser.add_argument('--check',           dest='check',
                     action='store_true', help='Check EER of original method')
+parser.add_argument('--generate',        dest='generate',
+                    action='store_true', help='Genearting Embedding Flag')
 
 ## Distributed and mixed precision training
 parser.add_argument('--port',           type=str,   default="8888",
                     help='Port for distributed training, input as text')
 parser.add_argument('--distributed',    dest='distributed',
                     action='store_true', help='Enable distributed training')
+
+
+# 모델 이용 임베딩 생성
+parser.add_argument('--gen_list', type=str,
+                    default='data/testset_normal_list', help='Generating List, normal type')
+parser.add_argument('--gen_path', type=str, default='/home/doyeolkim/vox_emb/test/',
+                    help='Absolute path to the generating set')
+parser.add_argument('--gen_target_dir', type=str, default='emb',
+                    help='Generating embedding target directory')
+
 
 args = parser.parse_args()
 
@@ -177,7 +192,7 @@ def main_worker(gpu, ngpus_per_node, args):
         scorefile = open(args.result_save_path+"/scores.txt", "a+")
 
     ## Initialise trainer and data loader
-    if args.trainfunc == 'DA':
+    if args.trainfunc[0:2] == 'DA':
         args.batch_size = 1
         train_dataset = MyDistributionDataset(
             args.train_list, args.train_path, **vars(args))
@@ -213,6 +228,47 @@ def main_worker(gpu, ngpus_per_node, args):
 
     for ii in range(1, it):
         trainer.__scheduler__.step()
+        
+        
+        
+    # 임베딩 생성 (Generate list 이용, normal list 형태, 화자 정보는 무시)
+    if args.generate == True:
+        
+        # if train function is DA, change it to MSE
+        args.trainfunc = 'MSE' if args.trainfunc == 'DA' else args.trainfunc
+        
+        s = EmbedNet(**vars(args))
+        s = WrappedModel(model=s).cuda(args.gpu)
+        s.eval()
+        
+        
+        if args.gpu == 0:
+            generate_dataset = MyDataset(args.gen_list, args.gen_path, **vars(args))
+            generate_loader = DataLoader(generate_dataset, batch_size=1, shuffle=False, num_workers=0, drop_last=False)
+            emb_save_path = os.path.join(args.save_path, args.gen_target_dir)
+            
+            with open(args.gen_list) as generate_file:
+                lines = generate_file.readlines()
+            
+            for idx, (sing_emb, _) in enumerate(generate_loader):
+                
+                tokens = lines[idx].split()[-1].split('/')
+                spk = tokens[0]
+                cat = tokens[1]
+                filename = tokens[2]
+                emb = s(sing_emb).detach().cpu()[0]
+                
+                emb_save_path_final = os.path.join(emb_save_path, spk)
+                emb_save_path_final = os.path.join(emb_save_path_final, cat)
+                os.makedirs(emb_save_path_final, exist_ok=True)
+                
+                numpy.save(os.path.join(emb_save_path_final, filename),numpy.array(emb))
+                print("\r{}/{}".format(idx+1, len(generate_loader)), end='')
+        return
+
+
+
+
 
     ## Get Original EER
     if args.check == True:
@@ -272,16 +328,12 @@ def main_worker(gpu, ngpus_per_node, args):
                 result2 = tuneThresholdfromScore(sc2, lab2, [1, 0.1])
                 print('\n', ' Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, VEER_LIBRI {:2.4f}, Vacc {:2.4f}'.format(
                     it, mean_loss, result[1], result2[1], mean_prec))
-                scorefile.write("--Val-- Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, VEER_LIBRI {:2.4f}\n".format(
-                    it, mean_loss, result[1], result2[1]))
+                scorefile.write("--Val-- Epoch {:d}, VLoss {:2.6f}, VEER {:2.4f}, VEER_LIBRI {:2.4f}, Vacc {:2.4f}\n".format(
+                    it, mean_loss, result[1], result2[1], mean_prec))
                 trainer.saveParameters(
                     args.model_save_path+"/model%09d.model" % it)
                 scorefile.flush()
 
-    # Save Result
-    if args.gpu == 0:
-        scorefile.close()
-        generate_graph(**vars(args))
 
 
 ## ===== ===== ===== ===== ===== ===== ===== =====

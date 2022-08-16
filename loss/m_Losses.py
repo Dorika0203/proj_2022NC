@@ -34,6 +34,11 @@ class LossFunction(nn.Module):
         elif self.trainfunc == 'DA':
             self.test_normalize = True
             self.cs = nn.CosineSimilarity()
+            self.sigma = kwargs['sigma']
+        elif self.trainfunc == 'DA_MSE':
+            self.test_normalize = True
+            self.mse = nn.MSELoss()
+            self.sigma = kwargs['sigma']
         else:
             raise ValueError('No Loss function - {}'.format(self.trainfunc))
 
@@ -105,9 +110,36 @@ class LossFunction(nn.Module):
             tt = torch.cdist(diff_dist, diff_dist).flatten()
             ts = torch.cdist(same_dist, diff_dist).flatten()
             
-            loss = torch.exp(-(ss**2)/2).mean() + torch.exp(-(tt**2)/2).mean() - 2*torch.exp(-(ts**2)/2).mean()
+            loss = torch.exp(-(ss**2)/(2*self.sigma**2)).mean() + torch.exp(-(tt**2)/(2*self.sigma**2)).mean() - 2*torch.exp(-(ts**2)/(2*self.sigma**2)).mean()
             # USE Precision as MMD Loss observer (originally used for classification accuracy)
             prec = loss.clone().detach()
+            
+            # DA만 이용시 주석 처리
             loss += 1 - self.cs(feat, mult_emb[0]).mean()
+        
+        elif self.trainfunc == 'DA_MSE':
+            
+            feat, cut_idx = x
+            mult_emb, _ = y
+            mult_emb = mult_emb.cuda()
+            
+            same_feat = feat[0:cut_idx]
+            diff_feat = feat[cut_idx:]
+            same_dist = torch.mean((same_feat[0::2] - same_feat[1::2])**2, dim=1).sqrt()
+            diff_dist = torch.mean((diff_feat[0::2] - diff_feat[1::2])**2, dim=1).sqrt()
+            same_dist = torch.unsqueeze(same_dist, dim=1)
+            diff_dist = torch.unsqueeze(diff_dist, dim=1)
+            
+            ss = torch.cdist(same_dist, same_dist).flatten()
+            tt = torch.cdist(diff_dist, diff_dist).flatten()
+            ts = torch.cdist(same_dist, diff_dist).flatten()
+            
+            loss = torch.exp(-(ss**2)/(2*self.sigma**2)).mean() + torch.exp(-(tt**2)/(2*self.sigma**2)).mean() - 2*torch.exp(-(ts**2)/(2*self.sigma**2)).mean()
+            # USE Precision as MMD Loss observer (originally used for classification accuracy)
+            prec = loss.clone().detach()
+            
+            # DA만 이용시 주석 처리
+            loss += self.mse(feat, mult_emb[0])
+            
 
         return loss, prec
