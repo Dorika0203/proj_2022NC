@@ -1,103 +1,86 @@
-# VoxCeleb trainer
+# Speaker Embedding Enhancement Model
 
-This repository contains the framework for training speaker recognition models described in the paper '_In defence of metric learning for speaker recognition_' and '_Pushing the limits of raw waveform speaker recognition_'.
+This repository is for Speaker Embedding Enhancement, followed by Voxceleb Trainer of NAVER Clova AI
+
+https://github.com/clovaai/voxceleb_trainer
+
 
 ### Dependencies
 ```
-pip install -r requirements.txt
+conda env create -f conda_requirements.txt
+```
+
+### Implemented files
+
+files with names "m_" added at front are new files
+
+```
+m_gen_embs.py
+m_comb_embs.py
+m_gen_list.py
+m_DataLoader.py
+m_network.py
+m_trainer.py
+m_viewer.py
+loss/m_Losses.py
+models/m_Models.py
 ```
 
 ### Data preparation
 
-The following script can be used to download and prepare the VoxCeleb dataset for training.
+Prepare Voxceleb dataset by using voxceleb trainer data preparation.
 
-```
-python ./dataprep.py --save_path data --download --user USERNAME --password PASSWORD 
-python ./dataprep.py --save_path data --extract
-python ./dataprep.py --save_path data --convert
-```
-In order to use data augmentation, also run:
+- Single-utterance Embeddings
 
+For prepared data, use m_gen_embs.py for generating embeddings.
+
+Modify "DB_PATH", "EMBED_DIR" for using wav directory and target embedding directory.
 ```
-python ./dataprep.py --save_path data --augment
+python ./m_gen_embs.py
 ```
 
-In addition to the Python dependencies, `wget` and `ffmpeg` must be installed on the system.
+- Multiple Utterance Embeddings
+
+After Single-utterance Embeddings, Generate Multiple-utterance Embeddings by m_comb_embs.py
+
+set "EMBED_DIR" for using single-utterance embedding directory which will also be target directory.
+```
+python ./m_comb_embs.py
+```
 
 ### Training examples
 
-- ResNetSE34L with AM-Softmax:
+- Using Configuration file:
 ```
-python ./trainSpeakerNet.py --config ./configs/ResNetSE34L_AM.yaml
-```
-
-- RawNet3 with AAM-Softmax
-```
-python ./trainSpeakerNet.py --config ./configs/RawNet3_AAM.yaml
-```
-
-- ResNetSE34L with Angular prototypical:
-```
-python ./trainSpeakerNet.py --config ./configs/ResNetSE34L_AP.yaml
+python ./m_trainer.py --config configs/MyLinearNetv2_Exp6-4.yaml
 ```
 
 You can pass individual arguments that are defined in trainSpeakerNet.py by `--{ARG_NAME} {VALUE}`.
 Note that the configuration file overrides the arguments passed via command line.
 
-### Pretrained models
-
-A pretrained model, described in [1], can be downloaded from [here](http://www.robots.ox.ac.uk/~joon/data/baseline_lite_ap.model).
-
-You can check that the following script returns: `EER 2.1792`. You will be given an option to save the scores.
-
-```
-python ./trainSpeakerNet.py --eval --model ResNetSE34L --log_input True --trainfunc angleproto --save_path exps/test --eval_frames 400 --initial_model baseline_lite_ap.model
-```
-
-A larger model trained with online data augmentation, described in [2], can be downloaded from [here](http://www.robots.ox.ac.uk/~joon/data/baseline_v2_ap.model). 
-
-The following script should return: `EER 1.1771`.
-
-```
-python ./trainSpeakerNet.py --eval --model ResNetSE34V2 --log_input True --encoder_type ASP --n_mels 64 --trainfunc softmaxproto --save_path exps/test --eval_frames 400  --initial_model baseline_v2_ap.model
-```
-
-Pretrained RawNet3, described in [3], can be downloaded via `git submodule update --init --recursive`.
-```
-python ./trainSpeakerNet.py --eval --config ./configs/RawNet3.yaml --initial_model RawNet3/model.pt 
-```
-
-The following script should return `EER 0.8932`.
-
 ### Implemented loss functions
 ```
-Softmax (softmax)
-AM-Softmax (amsoftmax)
-AAM-Softmax (aamsoftmax)
-GE2E (ge2e)
-Prototypical (proto)
-Triplet (triplet)
-Angular Prototypical (angleproto)
+MSE, MAE, CS
+MSE + CS                (MSE_CS)
+Softmax
+MSE + Softmax           (MSE_Softmax)
+Triplet + CS            (MyTriplet_CS)
+Domain Adaptation + CS  (DA)
+Domain Adaptation + MSE (DA_MSE)
 ```
 
-### Implemented models and encoders
+### Implemented models
 ```
-ResNetSE34L (SAP, ASP)
-ResNetSE34V2 (SAP, ASP)
-VGGVox40 (SAP, TAP, MAX)
+MyLinearNet
+MyLinearNetv2
+MyLinearNetv3
 ```
-
-### Data augmentation
-
-`--augment True` enables online data augmentation, described in [2].
 
 ### Adding new models and loss functions
 
-You can add new models and loss functions to `models` and `loss` directories respectively. See the existing definitions for examples.
+You can add new models and loss functions to `modes/m_Models.py` and `loss/m_Losses.py` files. See the existing definitions for examples.
 
 ### Accelerating training
-
-- Use `--mixedprec` flag to enable mixed precision training. This is recommended for Tesla V100, GeForce RTX 20 series or later models.
 
 - Use `--distributed` flag to enable distributed training.
 
@@ -107,36 +90,48 @@ You can add new models and loss functions to `models` and `loss` directories res
 
 ### Data
 
-The [VoxCeleb](http://www.robots.ox.ac.uk/~vgg/data/voxceleb/) datasets are used for these experiments.
+data list have 4 types.
+```
+{NAME}_normal_list.txt
+{NAME}_test_list.txt
+{NAME}_triplet_list.txt
+{NAME}_distribution_list.txt
+```
 
-The train list should contain the identity and the file path, one line per utterance, as follows:
+- train_list, valid_list
+
+For normal loss (MSE, CS, MAE, Softmax, Softmax + CS), use normal list. [ID / FILE]
 ```
 id00000 id00000/youtube_key/12345.wav
 id00012 id00012/21Uxsk56VDQ/00001.wav
 ```
 
-The train list for VoxCeleb2 can be download from [here](http://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/train_list.txt) and the
-test list for VoxCeleb1 from [here](http://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test.txt).
-
-### Replicating the results from the paper
-
-1. Model definitions
-  - `VGG-M-40` in [1] is `VGGVox` in the repository.
-  - `Thin ResNet-34` in [1] is `ResNetSE34` in the repository.
-  - `Fast ResNet-34` in [1] is `ResNetSE34L` in the repository.
-  - `H / ASP` in [2] is `ResNetSE34V2` in the repository.
-
-2. For metric learning objectives, the batch size in the paper is `nPerSpeaker` multiplied by `batch_size` in the code. For the batch size of 800 in the paper, use `--nPerSpeaker 2 --batch_size 400`, `--nPerSpeaker 3 --batch_size 266`, etc.
-
-3. The models have been trained with `--max_frames 200` and evaluated with `--max_frames 400`.
-
-4. You can get a good balance between speed and performance using the configuration below.
-
+For Triplet loss (Triplet + CS), use triplet list. [ID / FILE / OTHER ID]
 ```
-python ./trainSpeakerNet.py --model ResNetSE34L --trainfunc angleproto --batch_size 400 --nPerSpeaker 2 
+id10272 id10272/dkN2DIBrXqQ/00006.npy id10308
+id10272 id10272/dkN2DIBrXqQ/00005.npy id10303
 ```
 
-### Citation
+For Domain Adaptation loss (DA + CS, DA + MSE), use distribution list. [ID / FILE1 / FILE2 / SAME_CATEGORY_FLAG]
+```
+id10272 id10272/dkN2DIBrXqQ/00006.npy id10272/dkN2DIBrXqQ/00005.npy 1
+id10284 id10284/YN4cTBWM-QE/00005.npy id10284/RNYNkXzY5Hk/00021.npy 0
+```
+
+- test_list, test_list_libri
+
+For EER checking, use test list. [SAME_SPEAKER_FLAG / FILE1 / FILE2]
+```
+1 id10272/dkN2DIBrXqQ/00006.npy id10272/U-K8tabeDcI/00001.npy
+0 id10272/dkN2DIBrXqQ/00006.npy id10292/v6MWr5UAZ94/00002.npy
+```
+
+Lists can be created by script "m_gen_list.py", change "EMBED_DIR" and "FILENAME".
+```
+python ./m_gen_list.py 
+```
+
+### Citation - From Clova Voxceleb Trainer
 
 Please cite [1] if you make use of the code. Please see [here](References.md) for the full list of methods used in this trainer.
 
@@ -170,7 +165,7 @@ Please cite [1] if you make use of the code. Please see [here](References.md) fo
 }
 ```
 
-### License
+### License - From Clova Voxceleb Trainer
 ```
 Copyright (c) 2020-present NAVER Corp.
 
