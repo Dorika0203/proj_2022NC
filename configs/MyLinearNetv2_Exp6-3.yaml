@@ -25,12 +25,12 @@ test_path_libri: /home/doyeolkim/libri_emb/valid2/
 
 sigma: 0.1
 
-gen_list: data/trainset_normal_list.txt
-gen_path: /home/doyeolkim/vox_emb/train/
-gen_target_dir: emb_train
+# gen_list: data/trainset_normal_list.txt
+# gen_path: /home/doyeolkim/vox_emb/train/
+# gen_target_dir: emb_train
 
-# gen_list: data/testset_normal_list.txt
-# gen_path: /home/doyeolkim/vox_emb/test/
-# gen_target_dir: emb_test
+gen_list: data/testset_normal_list.txt
+gen_path: /home/doyeolkim/vox_emb/test/
+gen_target_dir: emb_test
 
 multiple_embedding_flag: B

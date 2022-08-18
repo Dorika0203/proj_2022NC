@@ -22,4 +22,12 @@ valid_path: /home/doyeolkim/vox_emb/test/
 test_path: /home/doyeolkim/vox_emb/test/
 test_path_libri: /home/doyeolkim/libri_emb/valid2/
 
+# gen_list: data/trainset_normal_list.txt
+# gen_path: /home/doyeolkim/vox_emb/train/
+# gen_target_dir: emb_train
+
+gen_list: data/testset_normal_list.txt
+gen_path: /home/doyeolkim/vox_emb/test/
+gen_target_dir: emb_test
+
 multiple_embedding_flag: C

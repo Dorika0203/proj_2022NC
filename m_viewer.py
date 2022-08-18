@@ -2,8 +2,8 @@ from matplotlib import pyplot as plt
 import os
 
 # SAVE_PATH = "exp_emb/MyLinearNet_Exp3-2"
-# SAVE_PATH = "exp_emb/MyLinearNetv2_Exp4-2-1"
-SAVE_PATH = "exp_emb/MyLinearNetv2_Exp6-3"
+SAVE_PATH = "exp_emb/MyLinearNetv2_Exp5-1-1"
+# SAVE_PATH = "exp_emb/MyLinearNetv2_Exp6-3"
 
 file_path = os.path.join(SAVE_PATH, 'result/scores.txt')
 
@@ -52,7 +52,7 @@ plt.savefig(os.path.join(SAVE_PATH, 'result/fig.png'))
 
 # 규격 맞추기, EER만
 fig, ax2 = plt.subplots(figsize=(8,8))
-ax2.set_ylim(2.0, 3.0)
+ax2.set_ylim(1.0, 3.0)
 ax2.plot(vepoch, veer, **{'color': 'blue'}, label='valid EER')
 ax2.plot(vepoch, veer_libri, **{'color': 'red'}, label='valid EER (libri)')
 
